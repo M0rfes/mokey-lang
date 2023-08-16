@@ -1,0 +1,57 @@
+use super::token::Token;
+pub trait Node {
+    fn token_literal(&self) -> String;
+}
+
+pub trait Statement: Node {
+    // fn statement_node(&self) -> &dyn Node;
+}
+
+pub trait Expression: Node {
+    // fn expression_node(&self) -> &dyn Node;
+}
+pub struct Program {
+    pub statements: Vec<Box<dyn Statement>>,
+}
+
+impl Node for Program {
+    fn token_literal(&self) -> String {
+        if let Some(statement) = self.statements.first() {
+            statement.token_literal()
+        } else {
+            "".to_string()
+        }
+    }
+}
+
+pub struct LetStatement<'a> {
+    token: Token,
+    name: &'a Identifier,
+    value: Box<dyn Expression>,
+}
+
+impl Statement for LetStatement<'_> {}
+
+impl Node for LetStatement<'_> {
+    fn token_literal(&self) -> String {
+        String::from("LET")
+    }
+}
+
+// Identifier struct implementing the Expression trait
+struct Identifier {
+    token: Token,
+    value: String,
+}
+
+impl Expression for Identifier {}
+
+impl Node for Identifier {
+    fn token_literal(&self) -> String {
+        if let Token::IDENT(id) = self.token {
+            id
+        } else {
+            String::from("ILLEGAL")
+        }
+    }
+}
