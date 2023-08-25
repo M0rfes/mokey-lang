@@ -1,17 +1,13 @@
 use super::{
     ast::{
-        ExpresionStatement, Expression, Identifier, IntegerLiteral, LetStatement, PrefixExpression,
-        Program, ReturnStatement, Statement,
+        ExpresionStatement, Expression, Identifier, InfixExpression, IntegerLiteral, LetStatement,
+        PrefixExpression, Program, ReturnStatement, Statement,
     },
     lexer::Lexer,
     token::Token,
 };
-use std::collections::HashMap;
 
-type PrepixParseFn = dyn Fn(&mut Parcer) -> Box<dyn Expression>;
-type InfixParseFn = dyn Fn(&mut Parcer, Box<dyn Expression>) -> Box<dyn Expression>;
-
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Priority {
     LOWEST,
     EQUALS,
@@ -22,44 +18,11 @@ enum Priority {
     CALL,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum Exp {
-    Identifier,
-    Int,
-    BANG,
-    MINUS,
-}
-
 pub struct Parcer<'a> {
     l: &'a mut Lexer<'a>,
     cur_token: Token,
     peek_token: Token,
     errors: Vec<String>,
-    prepix_parse_fns: HashMap<Exp, Box<PrepixParseFn>>,
-    infix_parse_fns: HashMap<Exp, Box<InfixParseFn>>,
-}
-
-fn parse_identifier(p: &mut Parcer) -> Box<dyn Expression> {
-    Box::new(Identifier::new(p.cur_token.clone(), p.cur_token.literal()))
-}
-
-fn parse_int(p: &mut Parcer) -> Box<dyn Expression> {
-    Box::new(IntegerLiteral::new(
-        p.cur_token.clone(),
-        p.cur_token.literal().parse::<i64>().unwrap(),
-    ))
-}
-
-fn parse_prefix(p: &mut Parcer) -> Box<dyn Expression> {
-    let cur_token = p.cur_token.clone();
-    let litral = cur_token.literal();
-    p.next_token();
-    let expression = PrefixExpression::new(
-        cur_token,
-        litral,
-        p.parse_expression(Priority::PREFIX).unwrap(),
-    );
-    Box::new(expression)
 }
 
 impl<'a> Parcer<'a> {
@@ -69,15 +32,9 @@ impl<'a> Parcer<'a> {
             cur_token: Token::EOF,
             peek_token: Token::EOF,
             errors: Vec::new(),
-            prepix_parse_fns: HashMap::new(),
-            infix_parse_fns: HashMap::new(),
         };
         p.next_token();
         p.next_token();
-        p.register_prefix(Exp::Identifier, Box::new(parse_identifier));
-        p.register_prefix(Exp::Int, Box::new(parse_int));
-        p.register_prefix(Exp::BANG, Box::new(parse_prefix));
-        p.register_prefix(Exp::MINUS, Box::new(parse_prefix));
         p
     }
 
@@ -109,14 +66,14 @@ impl<'a> Parcer<'a> {
 
     fn parse_let_statement(&mut self) -> Option<Box<dyn Statement>> {
         if let Token::IDENT(ref id) = self.peek_token.clone() {
-            if !self.expect_peek(Token::IDENT(id.to_string())) {
+            if !self.expect_peek(&Token::IDENT(id.to_string())) {
                 return None;
             }
             let name = Identifier::new(self.cur_token.clone(), id.to_string());
-            if !self.expect_peek(Token::ASSIGN) {
+            if !self.expect_peek(&Token::ASSIGN) {
                 return None;
             }
-            while !self.cur_token_is(Token::SEMICOLON) {
+            while !self.cur_token_is(&Token::SEMICOLON) {
                 self.next_token();
             }
             Some(Box::new(LetStatement::new(Token::LET, Box::new(name))))
@@ -128,22 +85,22 @@ impl<'a> Parcer<'a> {
     fn parse_return_statement(&mut self) -> Option<Box<dyn Statement>> {
         let statement = ReturnStatement::new(self.cur_token.clone());
         self.next_token();
-        while !self.cur_token_is(Token::SEMICOLON) {
+        while !self.cur_token_is(&Token::SEMICOLON) {
             self.next_token();
         }
         Some(Box::new(statement))
     }
 
-    fn peek_token_is(&self, token: Token) -> bool {
-        self.peek_token == token
+    fn peek_token_is(&self, token: &Token) -> bool {
+        self.peek_token == *token
     }
 
-    fn cur_token_is(&self, token: Token) -> bool {
-        self.cur_token == token
+    fn cur_token_is(&self, token: &Token) -> bool {
+        self.cur_token == *token
     }
 
-    fn expect_peek(&mut self, token: Token) -> bool {
-        if self.peek_token_is(token.clone()) {
+    fn expect_peek(&mut self, token: &Token) -> bool {
+        if self.peek_token_is(token) {
             self.next_token();
             true
         } else {
@@ -156,19 +113,11 @@ impl<'a> Parcer<'a> {
         &self.errors
     }
 
-    fn peek_error(&mut self, token: Token) {
+    fn peek_error(&mut self, token: &Token) {
         self.errors.push(format!(
             "expected next token to be {:?}, got {:?} instead",
-            token, self.peek_token
+            *token, self.peek_token
         ));
-    }
-
-    fn register_prefix(&mut self, token: Exp, func: Box<PrepixParseFn>) {
-        self.prepix_parse_fns.insert(token, func);
-    }
-
-    fn register_infix(&mut self, token: Exp, func: Box<InfixParseFn>) {
-        self.infix_parse_fns.insert(token, func);
     }
 
     fn parse_expression_statement(&mut self) -> Option<Box<dyn Statement>> {
@@ -180,18 +129,87 @@ impl<'a> Parcer<'a> {
     }
 
     fn parse_expression(&mut self, priority: Priority) -> Option<Box<dyn Expression>> {
-        let exp = match self.cur_token {
-            Token::IDENT(_) => Some(Exp::Identifier),
-            Token::INT(_) => Some(Exp::Int),
+        let left = match self.cur_token {
+            Token::IDENT(_) => Some(self.parse_identifier()),
+            Token::INT(_) => Some(self.parse_int()),
+            Token::BANG | Token::MINUS => Some(self.parse_prefix()),
             _ => None,
         };
-        if exp.is_none() {
-            return None;
+        let Some(mut left) = left else {
+                            return None;
+                        };
+        while !self.peek_token_is(&Token::SEMICOLON) && priority < self.peek_precedence() {
+            let is_infix = match self.peek_token {
+                Token::PLUS | Token::MINUS | Token::SLASH | Token::ASTERISK => true,
+                _ => false,
+            };
+            if !is_infix {
+                break;
+            }
+            self.next_token();
+            left = self.parse_infix_expression(left);
+            println!("left: {:?}", left);
         }
-        let exp = &exp.unwrap();
-        let prefix = self.prepix_parse_fns.get(exp).unwrap();
-        let left_exp = prefix(&mut self);
-        Some(left_exp)
+        Some(left)
+    }
+    fn parse_identifier(&mut self) -> Box<dyn Expression> {
+        Box::new(Identifier::new(
+            self.cur_token.clone(),
+            self.cur_token.literal(),
+        ))
+    }
+
+    fn parse_int(&mut self) -> Box<dyn Expression> {
+        Box::new(IntegerLiteral::new(
+            self.cur_token.clone(),
+            self.cur_token.literal().parse::<i64>().unwrap(),
+        ))
+    }
+
+    fn parse_prefix(&mut self) -> Box<dyn Expression> {
+        let cur_token = self.cur_token.clone();
+        let litral = cur_token.literal();
+        self.next_token();
+        let expression = PrefixExpression::new(
+            cur_token,
+            litral,
+            self.parse_expression(Priority::PREFIX).unwrap(),
+        );
+        Box::new(expression)
+    }
+
+    fn peek_precedence(&self) -> Priority {
+        match self.peek_token {
+            Token::EQ | Token::NOTEQ => Priority::EQUALS,
+            Token::LT | Token::GT => Priority::LESSGREATER,
+            Token::PLUS | Token::MINUS => Priority::SUM,
+            Token::SLASH | Token::ASTERISK => Priority::PRODUCT,
+            _ => Priority::LOWEST,
+        }
+    }
+
+    fn cur_precedence(&self) -> Priority {
+        match self.cur_token {
+            Token::EQ | Token::NOTEQ => Priority::EQUALS,
+            Token::LT | Token::GT => Priority::LESSGREATER,
+            Token::PLUS | Token::MINUS => Priority::SUM,
+            Token::SLASH | Token::ASTERISK => Priority::PRODUCT,
+            _ => Priority::LOWEST,
+        }
+    }
+
+    fn parse_infix_expression(&mut self, left: Box<dyn Expression>) -> Box<dyn Expression> {
+        let cur_token = self.cur_token.clone();
+        let litral = cur_token.literal();
+        let priority = self.cur_precedence();
+        self.next_token();
+        let expression = InfixExpression::new(
+            cur_token,
+            left,
+            litral,
+            self.parse_expression(priority).unwrap(),
+        );
+        Box::new(expression)
     }
 }
 
@@ -309,7 +327,7 @@ mod test {
         let tests = [("!", 5), ("-", 15)];
         for (i, statement) in program.statements.iter().enumerate() {
             let expression = statement.into_expression().unwrap();
-            println!("{:?}", expression);
+            println!("expression {:?}", expression);
             let prefix = expression.into_prefix().unwrap();
             assert_eq!(prefix.operator, tests[i].0);
             assert_eq!(
@@ -321,6 +339,40 @@ mod test {
                     .ok()
                     .unwrap(),
                 tests[i].1
+            );
+        }
+    }
+
+    #[test]
+    fn test_infix_expression() {
+        let input = [
+            ("5+5".to_string(), 5, "+".to_string(), 5),
+            ("5-5".to_string(), 5, "-".to_string(), 5),
+            ("5/5".to_string(), 5, "/".to_string(), 5),
+            ("5*5".to_string(), 5, "*".to_string(), 5),
+        ];
+
+        for (input, left, operator, right) in input.iter() {
+            let mut l = Lexer::new(input);
+            let mut p = Parcer::new(&mut l);
+            let program = p.parse_program();
+            check_parser_error(&mut p);
+            assert_eq!(program.statements.len(), 1);
+            let expression = program
+                .statements
+                .first()
+                .unwrap()
+                .into_expression()
+                .unwrap();
+            let infix = expression.into_infix().unwrap();
+            assert_eq!(
+                infix.left.token_literal().unwrap().parse::<i64>().unwrap(),
+                *left
+            );
+            assert_eq!(infix.operator, *operator);
+            assert_eq!(
+                infix.right.token_literal().unwrap().parse::<i64>().unwrap(),
+                *right
             );
         }
     }

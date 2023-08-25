@@ -19,6 +19,11 @@ pub trait Expression: Node {
     fn into_prefix(&self) -> Option<&PrefixExpression> {
         None
     }
+
+    fn into_infix(&self) -> Option<&InfixExpression> {
+        println!("into_infix {:?}", self);
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -233,10 +238,12 @@ impl Expression for ExpresionStatement {
     }
 
     fn into_prefix(&self) -> Option<&PrefixExpression> {
-        match self.token {
-            Token::BANG | Token::MINUS => self.expression.into_prefix(),
-            _ => None,
-        }
+        println!("into_prefix {:?}", self);
+        self.expression.into_prefix()
+    }
+
+    fn into_infix(&self) -> Option<&InfixExpression> {
+        self.expression.into_infix()
     }
 }
 
@@ -267,6 +274,52 @@ impl Expression for PrefixExpression {
 }
 
 impl Node for PrefixExpression {
+    fn token_literal(&self) -> Option<String> {
+        Some(self.token.literal())
+    }
+}
+
+#[derive(Debug)]
+pub struct InfixExpression {
+    pub token: Token,
+    pub left: Box<dyn Expression>,
+    pub operator: String,
+    pub right: Box<dyn Expression>,
+}
+
+impl InfixExpression {
+    pub fn new(
+        token: Token,
+        left: Box<dyn Expression>,
+        operator: String,
+        right: Box<dyn Expression>,
+    ) -> InfixExpression {
+        InfixExpression {
+            token,
+            left,
+            operator,
+            right,
+        }
+    }
+}
+
+impl Expression for InfixExpression {
+    fn into_infix(&self) -> Option<&InfixExpression> {
+        match self.token {
+            Token::PLUS
+            | Token::MINUS
+            | Token::SLASH
+            | Token::ASTERISK
+            | Token::LT
+            | Token::GT
+            | Token::EQ
+            | Token::NOTEQ => Some(self),
+            _ => None,
+        }
+    }
+}
+
+impl Node for InfixExpression {
     fn token_literal(&self) -> Option<String> {
         Some(self.token.literal())
     }
