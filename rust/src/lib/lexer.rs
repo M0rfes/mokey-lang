@@ -87,11 +87,25 @@ impl Lexer {
             }
             '<' => {
                 self.read_char();
-                token::Token::LT
+                if self.ch == '=' {
+                    self.read_char();
+                    token::Token::LTEQ
+                } else {
+                    token::Token::LT
+                }
             }
             '>' => {
                 self.read_char();
-                token::Token::GT
+                if self.ch == '=' {
+                    self.read_char();
+                    token::Token::GTEQ
+                } else {
+                    token::Token::GT
+                }
+            }
+            '%' => {
+                self.read_char();
+                token::Token::MOD
             }
             '\0' => {
                 self.read_char();
@@ -203,6 +217,9 @@ mod test {
         10 != 10;
         \"hellow world\";
         1.42;
+        4%2;
+        4>=2;
+        1<=2;
 ",
         );
         let l = Lexer::new(input);
@@ -283,6 +300,18 @@ mod test {
             STRING("hellow world".to_string()),
             SEMICOLON,
             FLOAT(1.42_f64),
+            SEMICOLON,
+            INT(4),
+            MOD,
+            INT(2),
+            SEMICOLON,
+            INT(4),
+            GTEQ,
+            INT(2),
+            SEMICOLON,
+            INT(1),
+            LTEQ,
+            INT(2),
             SEMICOLON,
             EOF,
         ];

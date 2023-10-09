@@ -32,6 +32,9 @@ pub enum Token {
     EQ,
     NOTEQ,
     STRING(String),
+    MOD,
+    LTEQ,
+    GTEQ,
 }
 
 impl ToString for Token {
@@ -66,6 +69,9 @@ impl ToString for Token {
             Token::EQ => "==".to_string(),
             Token::NOTEQ => "!=".to_string(),
             Token::STRING(s) => s.clone(),
+            Token::MOD => "%".to_string(),
+            Token::LTEQ => "<=".to_string(),
+            Token::GTEQ => ">=".to_string(),
         }
     }
 }

@@ -346,7 +346,7 @@ impl Expression for InfixExpression {
     fn into_infix_expression(&self) -> Option<&InfixExpression> {
         use token::Token::*;
         match self.token {
-            PLUS | MINUS | ASTRISK | SLASH | EQ | NOTEQ | LT | GT => Some(self),
+            PLUS | MINUS | ASTRISK | SLASH | EQ | NOTEQ | LT | GT | LTEQ | GTEQ | MOD => Some(self),
             _ => None,
         }
     }

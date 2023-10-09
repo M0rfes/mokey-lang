@@ -24,10 +24,13 @@ impl Priority {
             NOTEQ => Priority::EQUALS,
             LT => Priority::LESSGREATER,
             GT => Priority::LESSGREATER,
+            GTEQ => Priority::LESSGREATER,
+            LTEQ => Priority::LESSGREATER,
             PLUS => Priority::SUM,
             MINUS => Priority::SUM,
             SLASH => Priority::PRODUCT,
             ASTRISK => Priority::PRODUCT,
+            MOD => Priority::SUM,
             _ => Priority::LOWEST,
         }
     }
@@ -162,7 +165,7 @@ impl Parser {
                 && precedence < self.peek_precedence()
             {
                 l = match self.peek_token {
-                    PLUS | MINUS | ASTRISK | SLASH | LT | GT | EQ | NOTEQ => {
+                    PLUS | MINUS | ASTRISK | SLASH | LT | GT | EQ | NOTEQ | GTEQ | LTEQ | MOD => {
                         self.next_token();
                         self.parse_infix_expression(l)
                     }
@@ -379,12 +382,12 @@ let foobar = 838383; ",
 
     #[test]
     fn test_infix_expression() {
-        let input = "5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;";
+        let input = "5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;5>=5;5<=5;5%5";
         let l = lexer::Lexer::new(input.to_string());
         let mut p = Parser::new(l);
         let program = p.parse_program();
         assert_eq!(p.errors().len(), 0);
-        assert_eq!(program.statement.len(), 8);
+        assert_eq!(program.statement.len(), 11);
         let test = [
             ("5", "+", "5"),
             ("5", "-", "5"),
@@ -394,6 +397,9 @@ let foobar = 838383; ",
             ("5", "<", "5"),
             ("5", "==", "5"),
             ("5", "!=", "5"),
+            ("5", ">=", "5"),
+            ("5", "<=", "5"),
+            ("5", "%", "5"),
         ];
         for (i, stmt) in program.statement.into_iter().enumerate() {
             let exp = stmt
