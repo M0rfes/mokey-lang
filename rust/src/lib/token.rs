@@ -1,12 +1,13 @@
 use std::default;
 
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub enum Token {
     ILLEGAL,
     #[default]
     EOF,
     IDET(String),
     INT(i64),
+    FLOAT(f64),
     ASSIGN,
     PLUS,
     MINUS,
@@ -40,6 +41,7 @@ impl ToString for Token {
             Token::EOF => "EOF".to_string(),
             Token::IDET(s) => s.clone(),
             Token::INT(i) => i.to_string(),
+            Token::FLOAT(f) => f.to_string(),
             Token::ASSIGN => "=".to_string(),
             Token::PLUS => "+".to_string(),
             Token::COMMA => ",".to_string(),

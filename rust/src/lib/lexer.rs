@@ -102,8 +102,14 @@ impl Lexer {
                     let ident = self.read_identifier();
                     token::Token::from(ident.to_string())
                 } else if self.ch.is_ascii_digit() {
-                    let num = self.read_number();
-                    token::Token::INT(num)
+                    let (int, float) = self.read_number();
+                    if let Some(i) = int {
+                        token::Token::INT(i)
+                    } else if let Some(f) = float {
+                        token::Token::FLOAT(f)
+                    } else {
+                        token::Token::ILLEGAL
+                    }
                 } else if self.ch == '"' {
                     let string = self.read_str().to_string();
                     token::Token::STRING(string)
@@ -125,13 +131,24 @@ impl Lexer {
         &self.input[position..self.position] as _
     }
 
-    fn read_number(&mut self) -> i64 {
+    fn read_number(&mut self) -> (Option<i64>, Option<f64>) {
         let position = self.position;
-        while self.ch.is_ascii_digit() {
+        let mut saw_dot = 0;
+        while (self.ch.is_ascii_digit() || self.ch == '.') && saw_dot <= 1 {
             self.read_char();
+            if self.ch == '.' {
+                saw_dot += 1;
+            }
         }
         let num = &self.input[position..self.position];
-        num.parse().unwrap()
+        let mut int: Option<i64> = None;
+        let mut float: Option<f64> = None;
+        if saw_dot == 1 {
+            float = Some(num.parse::<f64>().unwrap());
+        } else {
+            int = Some(num.parse::<i64>().unwrap());
+        }
+        (int, float)
     }
 
     fn read_str(&mut self) -> &str {
@@ -185,6 +202,7 @@ mod test {
         10 == 10;
         10 != 10;
         \"hellow world\";
+        1.42;
 ",
         );
         let l = Lexer::new(input);
@@ -263,6 +281,8 @@ mod test {
             INT(10),
             SEMICOLON,
             STRING("hellow world".to_string()),
+            SEMICOLON,
+            FLOAT(1.42_f64),
             SEMICOLON,
             EOF,
         ];
