@@ -136,6 +136,7 @@ impl Parser {
             FLOAT(_) => Some(self.parse_float_litral()),
             TRUE | FALSE => Some(self.parse_boolean_litral()),
             STRING(_) => Some(self.parse_string_litral()),
+            BANG | MINUS => Some(self.parse_prefix_expresion()),
             _ => None,
         };
         left
@@ -165,6 +166,13 @@ impl Parser {
 
     fn parse_string_litral(&mut self) -> Box<dyn ast::Epression> {
         Box::new(ast::StringLitral(mem::take(&mut self.cur_token)))
+    }
+
+    fn parse_prefix_expresion(&mut self) -> Box<dyn ast::Epression> {
+        let cur = mem::take(&mut self.cur_token);
+        self.next_token();
+        let right = self.parse_expression(Priority::PREFIX).unwrap();
+        Box::new(ast::PrefixExpression { token: cur, right })
     }
 }
 
@@ -281,5 +289,36 @@ let foobar = 838383; ",
         let smt = program.statement[0].into_expresion_statement().unwrap();
         let ident = smt.expression.into_string().unwrap();
         assert_eq!(ident.0.to_string(), "hello world");
+    }
+
+    #[test]
+    fn test_prefix_expression() {
+        let input = "!5;-5;!5.5;-5.5;!true;!false;-true;-false;";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 8);
+        let test = [
+            ("!", "5"),
+            ("-", "5"),
+            ("!", "5.5"),
+            ("-", "5.5"),
+            ("!", "TRUE"),
+            ("!", "FALSE"),
+            ("-", "TRUE"),
+            ("-", "FALSE"),
+        ];
+
+        for (i, stmt) in program.statement.into_iter().enumerate() {
+            let exp = stmt
+                .into_expresion_statement()
+                .unwrap()
+                .expression
+                .into_prefix_expression()
+                .unwrap();
+            assert_eq!(exp.token.to_string(), test[i].0);
+            assert_eq!(exp.right.to_string(), test[i].1);
+        }
     }
 }

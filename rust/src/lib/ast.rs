@@ -46,6 +46,11 @@ pub trait Epression: Node {
     fn into_string(&self) -> Option<&StringLitral> {
         None
     }
+
+    #[cfg(test)]
+    fn into_prefix_expression(&self) -> Option<&PrefixExpression> {
+        None
+    }
 }
 
 #[derive(Default)]
@@ -274,6 +279,33 @@ impl Epression for StringLitral {
     fn into_string(&self) -> Option<&StringLitral> {
         match self.0 {
             token::Token::STRING(_) => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct PrefixExpression {
+    pub token: token::Token,
+    pub right: Box<dyn Epression>,
+}
+
+impl ToString for PrefixExpression {
+    fn to_string(&self) -> String {
+        format!("({}{})", self.token_literal(), self.right.to_string())
+    }
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        self.token.to_string()
+    }
+}
+
+impl Epression for PrefixExpression {
+    #[cfg(test)]
+    fn into_prefix_expression(&self) -> Option<&PrefixExpression> {
+        match self.token {
+            token::Token::BANG | token::Token::MINUS => Some(self),
             _ => None,
         }
     }
