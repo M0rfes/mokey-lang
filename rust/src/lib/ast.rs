@@ -26,6 +26,26 @@ pub trait Epression: Node {
     fn into_identifier(&self) -> Option<&Identfier> {
         None
     }
+
+    #[cfg(test)]
+    fn into_int(&self) -> Option<&IntegerLitral> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_float(&self) -> Option<&FloatLitral> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_bool(&self) -> Option<&BooleanLitral> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_string(&self) -> Option<&StringLitral> {
+        None
+    }
 }
 
 #[derive(Default)]
@@ -70,7 +90,10 @@ impl Node for Identfier {
 impl Epression for Identfier {
     #[cfg(test)]
     fn into_identifier(&self) -> Option<&Identfier> {
-        Some(self)
+        match self.0 {
+            token::Token::IDET(_) => Some(self),
+            _ => None,
+        }
     }
 }
 
@@ -97,7 +120,10 @@ impl Node for LetStatement {
 impl Statement for LetStatement {
     #[cfg(test)]
     fn into_let_statement(&self) -> Option<&LetStatement> {
-        Some(self)
+        match self.token {
+            token::Token::LET => Some(self),
+            _ => None,
+        }
     }
 }
 
@@ -123,7 +149,10 @@ impl Node for ReturnStatement {
 impl Statement for ReturnStatement {
     #[cfg(test)]
     fn into_return_statement(&self) -> Option<&ReturnStatement> {
-        Some(self)
+        match self.token {
+            token::Token::RETURN => Some(self),
+            _ => None,
+        }
     }
 }
 
@@ -147,6 +176,105 @@ impl Node for ExpressionStatement {
 impl Statement for ExpressionStatement {
     #[cfg(test)]
     fn into_expresion_statement(&self) -> Option<&ExpressionStatement> {
-        Some(self)
+        match self.token {
+            token::Token::LET | token::Token::RETURN => None,
+            _ => Some(self),
+        }
+    }
+}
+
+pub struct IntegerLitral(pub token::Token);
+
+impl ToString for IntegerLitral {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Node for IntegerLitral {
+    fn token_literal(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Epression for IntegerLitral {
+    #[cfg(test)]
+    fn into_int(&self) -> Option<&IntegerLitral> {
+        match self.0 {
+            token::Token::INT(_) => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct FloatLitral(pub token::Token);
+
+impl ToString for FloatLitral {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Node for FloatLitral {
+    fn token_literal(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Epression for FloatLitral {
+    #[cfg(test)]
+    fn into_float(&self) -> Option<&FloatLitral> {
+        match self.0 {
+            token::Token::FLOAT(_) => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct BooleanLitral(pub token::Token);
+
+impl ToString for BooleanLitral {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Node for BooleanLitral {
+    fn token_literal(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Epression for BooleanLitral {
+    #[cfg(test)]
+    fn into_bool(&self) -> Option<&BooleanLitral> {
+        match self.0 {
+            token::Token::TRUE | token::Token::FALSE => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct StringLitral(pub token::Token);
+
+impl ToString for StringLitral {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Node for StringLitral {
+    fn token_literal(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl Epression for StringLitral {
+    #[cfg(test)]
+    fn into_string(&self) -> Option<&StringLitral> {
+        match self.0 {
+            token::Token::STRING(_) => Some(self),
+            _ => None,
+        }
     }
 }

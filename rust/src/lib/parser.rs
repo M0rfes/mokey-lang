@@ -132,6 +132,10 @@ impl Parser {
         use token::Token::*;
         let left = match self.cur_token {
             IDET(_) => Some(self.parse_identifier()),
+            INT(_) => Some(self.parse_int_litral()),
+            FLOAT(_) => Some(self.parse_float_litral()),
+            TRUE | FALSE => Some(self.parse_boolean_litral()),
+            STRING(_) => Some(self.parse_string_litral()),
             _ => None,
         };
         left
@@ -146,6 +150,21 @@ impl Parser {
         } else {
             None
         }
+    }
+
+    fn parse_int_litral(&mut self) -> Box<dyn ast::Epression> {
+        Box::new(ast::IntegerLitral(mem::take(&mut self.cur_token)))
+    }
+    fn parse_float_litral(&mut self) -> Box<dyn ast::Epression> {
+        Box::new(ast::FloatLitral(mem::take(&mut self.cur_token)))
+    }
+
+    fn parse_boolean_litral(&mut self) -> Box<dyn ast::Epression> {
+        Box::new(ast::BooleanLitral(mem::take(&mut self.cur_token)))
+    }
+
+    fn parse_string_litral(&mut self) -> Box<dyn ast::Epression> {
+        Box::new(ast::StringLitral(mem::take(&mut self.cur_token)))
     }
 }
 
@@ -207,5 +226,60 @@ let foobar = 838383; ",
         let smt = program.statement[0].into_expresion_statement().unwrap();
         let ident = smt.expression.into_identifier().unwrap();
         assert_eq!(ident.0.to_string(), "foobar");
+    }
+
+    #[test]
+    fn test_int_expression() {
+        let input = "5;";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
+        let smt = program.statement[0].into_expresion_statement().unwrap();
+        let ident = smt.expression.into_int().unwrap();
+        assert_eq!(ident.0.to_string(), "5");
+    }
+
+    #[test]
+    fn test_float_expression() {
+        let input = "5.5;";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
+        let smt = program.statement[0].into_expresion_statement().unwrap();
+        let ident = smt.expression.into_float().unwrap();
+        assert_eq!(ident.0.to_string(), "5.5");
+    }
+
+    #[test]
+    fn test_bool_expression() {
+        let input = "true;false;";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 2);
+        let smt = program.statement[0].into_expresion_statement().unwrap();
+        let ident = smt.expression.into_bool().unwrap();
+        assert_eq!(ident.0.to_string(), "TRUE");
+        let smt = program.statement[1].into_expresion_statement().unwrap();
+        let ident = smt.expression.into_bool().unwrap();
+        assert_eq!(ident.0.to_string(), "FALSE");
+    }
+
+    #[test]
+    fn test_string_expression() {
+        let input = "\"hello world\";";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
+        let smt = program.statement[0].into_expresion_statement().unwrap();
+        let ident = smt.expression.into_string().unwrap();
+        assert_eq!(ident.0.to_string(), "hello world");
     }
 }
