@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::token;
 
 pub trait Node: ToString {
@@ -21,7 +23,7 @@ pub trait Statement: Node {
     }
 }
 
-pub trait Epression: Node {
+pub trait Expression: Node {
     #[cfg(test)]
     fn into_identifier(&self) -> Option<&Identfier> {
         None
@@ -49,6 +51,11 @@ pub trait Epression: Node {
 
     #[cfg(test)]
     fn into_prefix_expression(&self) -> Option<&PrefixExpression> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_infix_expression(&self) -> Option<&InfixExpression> {
         None
     }
 }
@@ -92,7 +99,7 @@ impl Node for Identfier {
     }
 }
 
-impl Epression for Identfier {
+impl Expression for Identfier {
     #[cfg(test)]
     fn into_identifier(&self) -> Option<&Identfier> {
         match self.0 {
@@ -163,7 +170,7 @@ impl Statement for ReturnStatement {
 
 pub struct ExpressionStatement {
     pub token: token::Token,
-    pub expression: Box<dyn Epression>,
+    pub expression: Box<dyn Expression>,
 }
 
 impl ToString for ExpressionStatement {
@@ -202,7 +209,7 @@ impl Node for IntegerLitral {
     }
 }
 
-impl Epression for IntegerLitral {
+impl Expression for IntegerLitral {
     #[cfg(test)]
     fn into_int(&self) -> Option<&IntegerLitral> {
         match self.0 {
@@ -226,7 +233,7 @@ impl Node for FloatLitral {
     }
 }
 
-impl Epression for FloatLitral {
+impl Expression for FloatLitral {
     #[cfg(test)]
     fn into_float(&self) -> Option<&FloatLitral> {
         match self.0 {
@@ -250,7 +257,7 @@ impl Node for BooleanLitral {
     }
 }
 
-impl Epression for BooleanLitral {
+impl Expression for BooleanLitral {
     #[cfg(test)]
     fn into_bool(&self) -> Option<&BooleanLitral> {
         match self.0 {
@@ -274,7 +281,7 @@ impl Node for StringLitral {
     }
 }
 
-impl Epression for StringLitral {
+impl Expression for StringLitral {
     #[cfg(test)]
     fn into_string(&self) -> Option<&StringLitral> {
         match self.0 {
@@ -286,7 +293,7 @@ impl Epression for StringLitral {
 
 pub struct PrefixExpression {
     pub token: token::Token,
-    pub right: Box<dyn Epression>,
+    pub right: Box<dyn Expression>,
 }
 
 impl ToString for PrefixExpression {
@@ -301,11 +308,45 @@ impl Node for PrefixExpression {
     }
 }
 
-impl Epression for PrefixExpression {
+impl Expression for PrefixExpression {
     #[cfg(test)]
     fn into_prefix_expression(&self) -> Option<&PrefixExpression> {
         match self.token {
             token::Token::BANG | token::Token::MINUS => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct InfixExpression {
+    pub left: Box<dyn Expression>,
+    pub token: token::Token,
+    pub right: Box<dyn Expression>,
+}
+
+impl ToString for InfixExpression {
+    fn to_string(&self) -> String {
+        format!(
+            "({} {} {})",
+            self.left.to_string(),
+            self.token.to_string(),
+            self.right.to_string()
+        )
+    }
+}
+
+impl Node for InfixExpression {
+    fn token_literal(&self) -> String {
+        self.token.to_string()
+    }
+}
+
+impl Expression for InfixExpression {
+    #[cfg(test)]
+    fn into_infix_expression(&self) -> Option<&InfixExpression> {
+        use token::Token::*;
+        match self.token {
+            PLUS | MINUS | ASTRISK | SLASH | EQ | NOTEQ | LT | GT => Some(self),
             _ => None,
         }
     }

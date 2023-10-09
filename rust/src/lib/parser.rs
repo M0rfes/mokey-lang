@@ -15,6 +15,24 @@ enum Priority {
     PREFIX,
     CALL,
 }
+
+impl Priority {
+    fn precedence(token: &token::Token) -> Priority {
+        use token::Token::*;
+        match token {
+            EQ => Priority::EQUALS,
+            NOTEQ => Priority::EQUALS,
+            LT => Priority::LESSGREATER,
+            GT => Priority::LESSGREATER,
+            PLUS => Priority::SUM,
+            MINUS => Priority::SUM,
+            SLASH => Priority::PRODUCT,
+            ASTRISK => Priority::PRODUCT,
+            _ => Priority::LOWEST,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Parser {
     l: lexer::Lexer,
@@ -124,13 +142,13 @@ impl Parser {
         Some(Box::new(stmt))
     }
 
-    fn parse_identifier(&mut self) -> Box<dyn ast::Epression> {
+    fn parse_identifier(&mut self) -> Box<dyn ast::Expression> {
         Box::new(ast::Identfier(mem::take(&mut self.cur_token)))
     }
 
-    fn parse_expression(&mut self, precedence: Priority) -> Option<Box<dyn ast::Epression>> {
+    fn parse_expression(&mut self, precedence: Priority) -> Option<Box<dyn ast::Expression>> {
         use token::Token::*;
-        let left = match self.cur_token {
+        let mut left = match self.cur_token {
             IDET(_) => Some(self.parse_identifier()),
             INT(_) => Some(self.parse_int_litral()),
             FLOAT(_) => Some(self.parse_float_litral()),
@@ -139,7 +157,21 @@ impl Parser {
             BANG | MINUS => Some(self.parse_prefix_expresion()),
             _ => None,
         };
-        left
+        if let Some(mut l) = left {
+            while !self.peek_token_is(&token::Token::SEMICOLON)
+                && precedence < self.peek_precedence()
+            {
+                l = match self.peek_token {
+                    PLUS | MINUS | ASTRISK | SLASH | LT | GT | EQ | NOTEQ => {
+                        self.next_token();
+                        self.parse_infix_expression(l)
+                    }
+                    _ => l,
+                }
+            }
+            return Some(l);
+        }
+        None
     }
 
     fn parse_expression_statement(&mut self) -> Option<Box<dyn ast::Statement>> {
@@ -153,26 +185,49 @@ impl Parser {
         }
     }
 
-    fn parse_int_litral(&mut self) -> Box<dyn ast::Epression> {
+    fn parse_int_litral(&mut self) -> Box<dyn ast::Expression> {
         Box::new(ast::IntegerLitral(mem::take(&mut self.cur_token)))
     }
-    fn parse_float_litral(&mut self) -> Box<dyn ast::Epression> {
+    fn parse_float_litral(&mut self) -> Box<dyn ast::Expression> {
         Box::new(ast::FloatLitral(mem::take(&mut self.cur_token)))
     }
 
-    fn parse_boolean_litral(&mut self) -> Box<dyn ast::Epression> {
+    fn parse_boolean_litral(&mut self) -> Box<dyn ast::Expression> {
         Box::new(ast::BooleanLitral(mem::take(&mut self.cur_token)))
     }
 
-    fn parse_string_litral(&mut self) -> Box<dyn ast::Epression> {
+    fn parse_string_litral(&mut self) -> Box<dyn ast::Expression> {
         Box::new(ast::StringLitral(mem::take(&mut self.cur_token)))
     }
 
-    fn parse_prefix_expresion(&mut self) -> Box<dyn ast::Epression> {
+    fn parse_prefix_expresion(&mut self) -> Box<dyn ast::Expression> {
         let cur = mem::take(&mut self.cur_token);
         self.next_token();
         let right = self.parse_expression(Priority::PREFIX).unwrap();
         Box::new(ast::PrefixExpression { token: cur, right })
+    }
+
+    fn peek_precedence(&self) -> Priority {
+        Priority::precedence(&self.peek_token)
+    }
+
+    fn cur_precedence(&self) -> Priority {
+        Priority::precedence(&self.cur_token)
+    }
+
+    fn parse_infix_expression(
+        &mut self,
+        left: Box<dyn ast::Expression>,
+    ) -> Box<dyn ast::Expression> {
+        let precedence = self.cur_precedence();
+        let cur = mem::take(&mut self.cur_token);
+        self.next_token();
+        let right = self.parse_expression(precedence).unwrap();
+        Box::new(ast::InfixExpression {
+            left,
+            token: cur,
+            right,
+        })
     }
 }
 
@@ -319,6 +374,37 @@ let foobar = 838383; ",
                 .unwrap();
             assert_eq!(exp.token.to_string(), test[i].0);
             assert_eq!(exp.right.to_string(), test[i].1);
+        }
+    }
+
+    #[test]
+    fn test_infix_expression() {
+        let input = "5+5;5-5;5*5;5/5;5>5;5<5;5==5;5!=5;";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 8);
+        let test = [
+            ("5", "+", "5"),
+            ("5", "-", "5"),
+            ("5", "*", "5"),
+            ("5", "/", "5"),
+            ("5", ">", "5"),
+            ("5", "<", "5"),
+            ("5", "==", "5"),
+            ("5", "!=", "5"),
+        ];
+        for (i, stmt) in program.statement.into_iter().enumerate() {
+            let exp = stmt
+                .into_expresion_statement()
+                .unwrap()
+                .expression
+                .into_infix_expression()
+                .unwrap();
+            assert_eq!(exp.left.to_string(), test[i].0);
+            assert_eq!(exp.token.to_string(), test[i].1);
+            assert_eq!(exp.right.to_string(), test[i].2);
         }
     }
 }
