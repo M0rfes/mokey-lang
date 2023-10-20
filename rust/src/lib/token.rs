@@ -76,9 +76,9 @@ impl ToString for Token {
     }
 }
 
-impl From<String> for Token {
-    fn from(value: String) -> Self {
-        match value.as_str() {
+impl From<&str> for Token {
+    fn from(value: &str) -> Self {
+        match value {
             "fn" => Token::FUNCTION,
             "let" => Token::LET,
             "if" => Token::IF,
@@ -86,7 +86,7 @@ impl From<String> for Token {
             "true" => Token::TRUE,
             "false" => Token::FALSE,
             "return" => Token::RETURN,
-            _ => Token::IDET(value),
+            _ => Token::IDET(value.into()),
         }
     }
 }

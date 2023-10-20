@@ -21,6 +21,11 @@ pub trait Statement: Node {
     fn into_expresion_statement(&self) -> Option<&ExpressionStatement> {
         None
     }
+
+    #[cfg(test)]
+    fn into_block_statement(&self) -> Option<&BlockStatement> {
+        None
+    }
 }
 
 pub trait Expression: Node {
@@ -56,6 +61,21 @@ pub trait Expression: Node {
 
     #[cfg(test)]
     fn into_infix_expression(&self) -> Option<&InfixExpression> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_if_expresion(&self) -> Option<&IfExpression> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_funtion_expression(&self) -> Option<&FunctioinLitral> {
+        None
+    }
+
+    #[cfg(test)]
+    fn into_call_expression(&self) -> Option<&CallExpression> {
         None
     }
 }
@@ -112,14 +132,12 @@ impl Expression for Identfier {
 pub struct LetStatement {
     pub token: token::Token,
     pub name: Identfier,
-    // pub value: Box<dyn Epression>,
+    pub value: Box<dyn Expression>,
 }
 
 impl ToString for LetStatement {
     fn to_string(&self) -> String {
-        let mut s = String::new();
-        // s = format!("{let} {name} = {value}", let=self.token_literal(), name=self.name.to_string(),value=self.value.to_string());
-        s
+        format!("let {} = {}", self.name.to_string(), self.value.to_string())
     }
 }
 
@@ -141,14 +159,16 @@ impl Statement for LetStatement {
 
 pub struct ReturnStatement {
     pub token: token::Token,
-    // pub return_value: Box<dyn Epression>,
+    pub value: Box<dyn Expression>,
 }
 
 impl ToString for ReturnStatement {
     fn to_string(&self) -> String {
-        let mut s = String::new();
-        s = format!("{return} ", return = self.token_literal());
-        s
+        format!(
+            "{return} {value}",
+            return = self.token_literal(),
+            value = self.value.to_string()
+        )
     }
 }
 
@@ -347,6 +367,142 @@ impl Expression for InfixExpression {
         use token::Token::*;
         match self.token {
             PLUS | MINUS | ASTRISK | SLASH | EQ | NOTEQ | LT | GT | LTEQ | GTEQ | MOD => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct BlockStatement {
+    pub token: token::Token,
+    pub statements: Vec<Box<dyn Statement>>,
+}
+
+impl ToString for BlockStatement {
+    fn to_string(&self) -> String {
+        self.statements
+            .as_slice()
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl Statement for BlockStatement {
+    #[cfg(test)]
+    fn into_block_statement(&self) -> Option<&BlockStatement> {
+        match self.token {
+            token::Token::LPAREN => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct IfExpression {
+    pub token: token::Token,
+    pub condition: Box<dyn Expression>,
+    pub consequence: BlockStatement,
+    pub alternative: Option<BlockStatement>,
+}
+
+impl ToString for IfExpression {
+    fn to_string(&self) -> String {
+        let mut s = format!(
+            "if{} {}",
+            self.condition.to_string(),
+            self.consequence.to_string()
+        );
+
+        if let Some(alt) = &self.alternative {
+            s = format!("{}else {}", s, alt.to_string());
+        }
+        s
+    }
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl Expression for IfExpression {
+    #[cfg(test)]
+    fn into_if_expresion(&self) -> Option<&IfExpression> {
+        match self.token {
+            token::Token::IF => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct FunctioinLitral {
+    pub token: token::Token,
+    pub parameters: Vec<Identfier>,
+    pub body: BlockStatement,
+}
+
+impl ToString for FunctioinLitral {
+    fn to_string(&self) -> String {
+        let mut s = format!("{}(", self.token.to_string());
+        for id in &self.parameters {
+            s = format!("{} {},", s, id.to_string());
+        }
+        s.pop();
+        s = format!("{}){{{}}}", s, self.body.to_string());
+        s
+    }
+}
+
+impl Node for FunctioinLitral {
+    fn token_literal(&self) -> String {
+        self.token.to_string()
+    }
+}
+
+impl Expression for FunctioinLitral {
+    #[cfg(test)]
+    fn into_funtion_expression(&self) -> Option<&FunctioinLitral> {
+        match self.token {
+            token::Token::FUNCTION => Some(self),
+            _ => None,
+        }
+    }
+}
+
+pub struct CallExpression {
+    pub token: token::Token,
+    pub function: Box<dyn Expression>,
+    pub arguments: Vec<Box<dyn Expression>>,
+}
+
+impl ToString for CallExpression {
+    fn to_string(&self) -> String {
+        let mut s = format!("{}(", self.function.to_string());
+        for args in &self.arguments {
+            s = format!("{} {},", s, args.to_string());
+        }
+        s = format!("{})", s);
+        s
+    }
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        self.token.to_string()
+    }
+}
+
+impl Expression for CallExpression {
+    #[cfg(test)]
+    fn into_call_expression(&self) -> Option<&CallExpression> {
+        match self.token {
+            token::Token::LPAREN => Some(self),
             _ => None,
         }
     }

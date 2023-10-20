@@ -113,8 +113,7 @@ impl Lexer {
             }
             _ => {
                 if self.ch.is_alphabetic() || self.ch == '_' {
-                    let ident = self.read_identifier();
-                    token::Token::from(ident.to_string())
+                    self.read_identifier().into()
                 } else if self.ch.is_ascii_digit() {
                     let (int, float) = self.read_number();
                     if let Some(i) = int {

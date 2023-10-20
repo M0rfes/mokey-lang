@@ -31,6 +31,7 @@ impl Priority {
             SLASH => Priority::PRODUCT,
             ASTRISK => Priority::PRODUCT,
             MOD => Priority::SUM,
+            LPAREN => Priority::CALL,
             _ => Priority::LOWEST,
         }
     }
@@ -60,7 +61,7 @@ impl Parser {
         self.peek_token = self.l.next_token();
     }
 
-    fn parse_program(&mut self) -> ast::Program {
+    pub fn parse_program(&mut self) -> ast::Program {
         let mut program = Program::default();
         while self.cur_token != token::Token::EOF {
             let stmt = self.parse_statement();
@@ -84,19 +85,17 @@ impl Parser {
     fn parse_let_statement(&mut self) -> Option<Box<dyn ast::Statement>> {
         let peek = mem::take(&mut self.peek_token);
         if let token::Token::IDET(_) = peek {
-            let stmt = ast::LetStatement {
-                token: mem::take(&mut self.cur_token),
-                name: ast::Identfier(peek),
-                //value: None,
-            };
+            let token = mem::take(&mut self.cur_token);
+            let name = ast::Identfier(peek);
             self.next_token();
             if !self.expect_peek(&token::Token::ASSIGN) {
                 return None;
             }
-            while !self.cur_token_is(&token::Token::SEMICOLON) {
-                self.next_token();
-            }
-            Some(Box::new(stmt))
+            self.next_token();
+            let Some(value) = self.parse_expression(Priority::LOWEST) else {
+                return None;
+            };
+            Some(Box::new(ast::LetStatement { token, name, value }))
         } else {
             self.peek_error(&peek);
             None
@@ -134,15 +133,15 @@ impl Parser {
     }
 
     fn parse_return_statement(&mut self) -> Option<Box<dyn ast::Statement>> {
-        let stmt = ast::ReturnStatement {
-            token: mem::take(&mut self.cur_token),
-            //return_value: None,
-        };
+        let token = mem::take(&mut self.cur_token);
         self.next_token();
-        while !self.cur_token_is(&token::Token::SEMICOLON) {
+        let Some(value) = self.parse_expression(Priority::LOWEST) else {
+            return None;
+        };
+        if self.peek_token_is(&token::Token::SEMICOLON) {
             self.next_token();
         }
-        Some(Box::new(stmt))
+        Some(Box::new(ast::ReturnStatement { token, value }))
     }
 
     fn parse_identifier(&mut self) -> Box<dyn ast::Expression> {
@@ -158,6 +157,9 @@ impl Parser {
             TRUE | FALSE => Some(self.parse_boolean_litral()),
             STRING(_) => Some(self.parse_string_litral()),
             BANG | MINUS => Some(self.parse_prefix_expresion()),
+            LPAREN => self.parse_group_expression(),
+            IF => self.parsr_if_expresssion(),
+            FUNCTION => self.parse_function_expression(),
             _ => None,
         };
         if let Some(mut l) = left {
@@ -169,11 +171,17 @@ impl Parser {
                         self.next_token();
                         self.parse_infix_expression(l)
                     }
+                    LPAREN => {
+                        self.next_token();
+                        self.pasrse_call_expression(l).unwrap()
+                    }
                     _ => l,
                 }
             }
+
             return Some(l);
         }
+
         None
     }
 
@@ -232,6 +240,144 @@ impl Parser {
             right,
         })
     }
+
+    fn parse_group_expression(&mut self) -> Option<Box<dyn ast::Expression>> {
+        self.next_token();
+        let exp = self.parse_expression(Priority::LOWEST);
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return None;
+        }
+        exp
+    }
+
+    fn pasrse_block_statement(&mut self) -> ast::BlockStatement {
+        let mut block = ast::BlockStatement {
+            token: mem::take(&mut self.cur_token),
+            statements: vec![],
+        };
+        self.next_token();
+
+        while !self.cur_token_is(&token::Token::RBRACE) && !self.cur_token_is(&token::Token::EOF) {
+            if let Some(smt) = self.parse_statement() {
+                block.statements.push(smt);
+            }
+            self.next_token();
+        }
+        block
+    }
+
+    fn parsr_if_expresssion(&mut self) -> Option<Box<dyn ast::Expression>> {
+        let cur = mem::take(&mut self.cur_token);
+        if !self.expect_peek(&token::Token::LPAREN) {
+            return None;
+        }
+        self.next_token();
+        let Some(condition) = self.parse_expression(Priority::LOWEST) else {
+            return None;
+        };
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return None;
+        }
+        if !self.expect_peek(&token::Token::LBRACE) {
+            return None;
+        }
+        let consequence = self.pasrse_block_statement();
+        let mut alternative = None;
+        if self.peek_token_is(&token::Token::ELSE) {
+            self.next_token();
+            if !self.expect_peek(&token::Token::LBRACE) {
+                return None;
+            }
+            alternative = Some(self.pasrse_block_statement());
+        }
+        Some(Box::new(ast::IfExpression {
+            token: cur,
+            condition,
+            consequence,
+            alternative,
+        }))
+    }
+
+    fn parse_function_patameters(&mut self) -> Option<Vec<ast::Identfier>> {
+        let mut identifiers = vec![];
+        if self.peek_token_is(&token::Token::RPAREN) {
+            self.next_token();
+            return Some(identifiers);
+        }
+        self.next_token();
+        identifiers.push(ast::Identfier(mem::take(&mut self.cur_token)));
+        while self.peek_token_is(&token::Token::COMMA) {
+            self.next_token();
+            self.next_token();
+            identifiers.push(ast::Identfier(mem::take(&mut self.cur_token)));
+        }
+
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return None;
+        }
+        Some(identifiers)
+    }
+
+    fn parse_function_expression(&mut self) -> Option<Box<dyn ast::Expression>> {
+        let cur = mem::take(&mut self.cur_token);
+        if !self.expect_peek(&token::Token::LPAREN) {
+            return None;
+        }
+        if !self.expect_peek(&token::Token::LBRACE) {
+            return None;
+        }
+        let Some(parameters) = self.parse_function_patameters() else {
+            return None;
+        };
+        let body = self.pasrse_block_statement();
+        Some(Box::new(ast::FunctioinLitral {
+            token: cur,
+            parameters,
+            body,
+        }))
+    }
+
+    fn pasrse_call_expression(
+        &mut self,
+        function: Box<dyn ast::Expression>,
+    ) -> Option<Box<dyn ast::Expression>> {
+        let token = mem::take(&mut self.cur_token);
+        let Some(arguments) = self.parse_call_arguments() else {
+            return None;
+        };
+        Some(Box::new(ast::CallExpression {
+            token,
+            function,
+            arguments,
+        }))
+    }
+
+    fn parse_call_arguments(&mut self) -> Option<Vec<Box<dyn ast::Expression>>> {
+        let mut args = vec![];
+        if self.peek_token_is(&token::Token::RPAREN) {
+            self.next_token();
+            return Some(args);
+        }
+        self.next_token();
+        let Some(arg) = self.parse_expression(Priority::LOWEST) else {
+            return None;
+        };
+        args.push(arg);
+
+        while self.peek_token_is(&token::Token::COMMA) {
+            self.next_token();
+            self.next_token();
+            let Some(arg) = self.parse_expression(Priority::LOWEST) else {
+                return None;
+            };
+            args.push(arg);
+        }
+
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return None;
+        }
+        Some(args)
+    }
 }
 
 #[cfg(test)]
@@ -250,10 +396,12 @@ let foobar = 838383; ",
         assert_eq!(p.errors().len(), 0);
         assert_eq!(program.statement.len(), 3);
         let tests = ["x", "y", "foobar"];
+        let values = ["5", "10", "838383"];
         for (i, s) in program.statement.into_iter().enumerate() {
             assert_eq!(s.token_literal(), "LET");
             let let_stmt = s.into_let_statement().unwrap();
             assert_eq!(let_stmt.name.0.to_string(), tests[i]);
+            assert_eq!(let_stmt.value.to_string(), values[i]);
         }
     }
 
@@ -277,7 +425,8 @@ let foobar = 838383; ",
         let tests = ["5", "10", "x"];
         for (i, s) in program.statement.into_iter().enumerate() {
             assert_eq!(s.token_literal(), "RETURN");
-            let return_stmt = s.into_return_statement().unwrap();
+            let return_stmt = s.into_return_statement().unwrap().value.to_string();
+            assert_eq!(return_stmt, tests[i]);
         }
     }
 
@@ -412,5 +561,103 @@ let foobar = 838383; ",
             assert_eq!(exp.token.to_string(), test[i].1);
             assert_eq!(exp.right.to_string(), test[i].2);
         }
+    }
+
+    #[test]
+    fn test_oprator_precence_paring() {
+        let cases = [
+            ("1+(2+3)+4", "((1 + (2 + 3)) + 4)"),
+            ("(5+5)*2", "((5 + 5) * 2)"),
+            ("2/(5+5)", "(2 / (5 + 5))"),
+            ("-(5+5)", "(-(5 + 5))"),
+            ("!(true==true)", "(!(TRUE == TRUE))"),
+        ];
+
+        for case in cases {
+            let l = lexer::Lexer::new(case.0.to_string());
+            let mut p = Parser::new(l);
+            let program = p.parse_program();
+            assert_eq!(p.errors().len(), 0);
+            assert_eq!(program.to_string(), case.1);
+        }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = "if(x<y){x}";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
+        for stmt in program.statement {
+            let exp = stmt
+                .into_expresion_statement()
+                .unwrap()
+                .expression
+                .into_if_expresion()
+                .unwrap();
+            assert_eq!(exp.token, token::Token::IF);
+            assert_eq!(exp.condition.to_string(), "(x < y)");
+            assert_eq!(exp.consequence.to_string(), "x");
+            assert!(exp.alternative.is_none());
+        }
+    }
+
+    #[test]
+    fn test_ifelse_expression() {
+        let input = "if(x<y){x}else{y}";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
+        for smt in program.statement {
+            let exp = smt
+                .into_expresion_statement()
+                .unwrap()
+                .expression
+                .into_if_expresion()
+                .unwrap();
+
+            assert_eq!(exp.token, token::Token::IF);
+            assert_eq!(exp.condition.to_string(), "(x < y)");
+            assert_eq!(exp.consequence.to_string(), "x");
+            assert!(exp.alternative.is_some());
+        }
+    }
+
+    #[test]
+    fn test_funtion_expression() {
+        let input = "fn(x,y){x+y}";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
+        for stmt in program.statement {
+            let exp = stmt
+                .into_expresion_statement()
+                .unwrap()
+                .expression
+                .into_funtion_expression()
+                .unwrap();
+            assert_eq!(exp.token, token::Token::FUNCTION);
+            assert_eq!(exp.parameters.len(), 2);
+            assert_eq!(exp.parameters[0].to_string(), "x");
+            assert_eq!(exp.parameters[1].to_string(), "y");
+            assert_eq!(exp.body.to_string(), "(x + y)");
+        }
+    }
+
+    #[test]
+    fn test_call_expression() {
+        let input = "add(1,2*3,4+5)";
+        let l = lexer::Lexer::new(input.to_string());
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        assert_eq!(p.errors().join("\n"), "");
+        assert_eq!(p.errors().len(), 0);
+        assert_eq!(program.statement.len(), 1);
     }
 }

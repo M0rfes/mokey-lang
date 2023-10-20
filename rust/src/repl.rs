@@ -9,8 +9,10 @@ fn main() {
     while let Ok(_) = stdin.read_line(&mut user_input) {
         print!("{PROMPT}");
         let lex = Lexer::new(user_input.clone());
-        for t in lex {
-            print!("{:?} ", t);
+        let mut p = lib::parser::Parser::new(lex);
+        let p = p.parse_program();
+        for stmt in p.statement {
+            println!("{}", stmt.to_string());
         }
         println!("");
         user_input.clear();
