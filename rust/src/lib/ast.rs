@@ -4,6 +4,7 @@ use super::token;
 
 pub trait Node: ToString {
     fn token_literal(&self) -> String;
+    fn token(&self) -> &token::Token;
 }
 
 pub trait Statement: Node {
@@ -103,6 +104,14 @@ impl Node for Program {
             String::from("")
         }
     }
+
+    fn token(&self) -> &token::Token {
+        if !self.statement.is_empty() {
+            self.statement[0].token()
+        } else {
+            &token::Token::EOF
+        }
+    }
 }
 
 pub struct Identfier(pub token::Token);
@@ -116,6 +125,10 @@ impl ToString for Identfier {
 impl Node for Identfier {
     fn token_literal(&self) -> String {
         self.0.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.0
     }
 }
 
@@ -144,6 +157,10 @@ impl ToString for LetStatement {
 impl Node for LetStatement {
     fn token_literal(&self) -> String {
         self.token.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.token
     }
 }
 
@@ -176,6 +193,10 @@ impl Node for ReturnStatement {
     fn token_literal(&self) -> String {
         self.token.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.token
+    }
 }
 
 impl Statement for ReturnStatement {
@@ -203,6 +224,10 @@ impl Node for ExpressionStatement {
     fn token_literal(&self) -> String {
         self.token.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.token
+    }
 }
 
 impl Statement for ExpressionStatement {
@@ -226,6 +251,10 @@ impl ToString for IntegerLitral {
 impl Node for IntegerLitral {
     fn token_literal(&self) -> String {
         self.0.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.0
     }
 }
 
@@ -251,6 +280,10 @@ impl Node for FloatLitral {
     fn token_literal(&self) -> String {
         self.0.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.0
+    }
 }
 
 impl Expression for FloatLitral {
@@ -275,6 +308,10 @@ impl Node for BooleanLitral {
     fn token_literal(&self) -> String {
         self.0.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.0
+    }
 }
 
 impl Expression for BooleanLitral {
@@ -298,6 +335,10 @@ impl ToString for StringLitral {
 impl Node for StringLitral {
     fn token_literal(&self) -> String {
         self.0.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.0
     }
 }
 
@@ -325,6 +366,10 @@ impl ToString for PrefixExpression {
 impl Node for PrefixExpression {
     fn token_literal(&self) -> String {
         self.token.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.token
     }
 }
 
@@ -359,6 +404,10 @@ impl Node for InfixExpression {
     fn token_literal(&self) -> String {
         self.token.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.token
+    }
 }
 
 impl Expression for InfixExpression {
@@ -390,6 +439,10 @@ impl ToString for BlockStatement {
 impl Node for BlockStatement {
     fn token_literal(&self) -> String {
         self.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.token
     }
 }
 
@@ -429,6 +482,10 @@ impl Node for IfExpression {
     fn token_literal(&self) -> String {
         self.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.token
+    }
 }
 
 impl Expression for IfExpression {
@@ -463,6 +520,10 @@ impl Node for FunctioinLitral {
     fn token_literal(&self) -> String {
         self.token.to_string()
     }
+
+    fn token(&self) -> &token::Token {
+        &self.token
+    }
 }
 
 impl Expression for FunctioinLitral {
@@ -495,6 +556,10 @@ impl ToString for CallExpression {
 impl Node for CallExpression {
     fn token_literal(&self) -> String {
         self.token.to_string()
+    }
+
+    fn token(&self) -> &token::Token {
+        &self.token
     }
 }
 
