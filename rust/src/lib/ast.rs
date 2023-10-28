@@ -5,77 +5,69 @@ use super::token;
 pub trait Node: ToString {
     fn token_literal(&self) -> String;
     fn token(&self) -> &token::Token;
+    fn into_program(&self) -> Option<&Program> {
+        None
+    }
+    fn into_expression(&self) -> Option<&ExpressionStatement> {
+        None
+    }
 }
 
 pub trait Statement: Node {
-    #[cfg(test)]
     fn into_let_statement(&self) -> Option<&LetStatement> {
         None
     }
 
-    #[cfg(test)]
     fn into_return_statement(&self) -> Option<&ReturnStatement> {
         None
     }
 
-    #[cfg(test)]
     fn into_expresion_statement(&self) -> Option<&ExpressionStatement> {
         None
     }
 
-    #[cfg(test)]
     fn into_block_statement(&self) -> Option<&BlockStatement> {
         None
     }
 }
 
 pub trait Expression: Node {
-    #[cfg(test)]
     fn into_identifier(&self) -> Option<&Identfier> {
         None
     }
 
-    #[cfg(test)]
     fn into_int(&self) -> Option<&IntegerLitral> {
         None
     }
 
-    #[cfg(test)]
     fn into_float(&self) -> Option<&FloatLitral> {
         None
     }
 
-    #[cfg(test)]
     fn into_bool(&self) -> Option<&BooleanLitral> {
         None
     }
 
-    #[cfg(test)]
     fn into_string(&self) -> Option<&StringLitral> {
         None
     }
 
-    #[cfg(test)]
     fn into_prefix_expression(&self) -> Option<&PrefixExpression> {
         None
     }
 
-    #[cfg(test)]
     fn into_infix_expression(&self) -> Option<&InfixExpression> {
         None
     }
 
-    #[cfg(test)]
     fn into_if_expresion(&self) -> Option<&IfExpression> {
         None
     }
 
-    #[cfg(test)]
     fn into_funtion_expression(&self) -> Option<&FunctioinLitral> {
         None
     }
 
-    #[cfg(test)]
     fn into_call_expression(&self) -> Option<&CallExpression> {
         None
     }
@@ -112,6 +104,10 @@ impl Node for Program {
             &token::Token::EOF
         }
     }
+
+    fn into_program(&self) -> Option<&Program> {
+        Some(self)
+    }
 }
 
 pub struct Identfier(pub token::Token);
@@ -133,7 +129,6 @@ impl Node for Identfier {
 }
 
 impl Expression for Identfier {
-    #[cfg(test)]
     fn into_identifier(&self) -> Option<&Identfier> {
         match self.0 {
             token::Token::IDET(_) => Some(self),
@@ -165,7 +160,6 @@ impl Node for LetStatement {
 }
 
 impl Statement for LetStatement {
-    #[cfg(test)]
     fn into_let_statement(&self) -> Option<&LetStatement> {
         match self.token {
             token::Token::LET => Some(self),
@@ -200,7 +194,6 @@ impl Node for ReturnStatement {
 }
 
 impl Statement for ReturnStatement {
-    #[cfg(test)]
     fn into_return_statement(&self) -> Option<&ReturnStatement> {
         match self.token {
             token::Token::RETURN => Some(self),
@@ -228,10 +221,13 @@ impl Node for ExpressionStatement {
     fn token(&self) -> &token::Token {
         &self.token
     }
+
+    fn into_expression(&self) -> Option<&ExpressionStatement> {
+        Some(self)
+    }
 }
 
 impl Statement for ExpressionStatement {
-    #[cfg(test)]
     fn into_expresion_statement(&self) -> Option<&ExpressionStatement> {
         match self.token {
             token::Token::LET | token::Token::RETURN => None,
@@ -259,7 +255,6 @@ impl Node for IntegerLitral {
 }
 
 impl Expression for IntegerLitral {
-    #[cfg(test)]
     fn into_int(&self) -> Option<&IntegerLitral> {
         match self.0 {
             token::Token::INT(_) => Some(self),
@@ -287,7 +282,6 @@ impl Node for FloatLitral {
 }
 
 impl Expression for FloatLitral {
-    #[cfg(test)]
     fn into_float(&self) -> Option<&FloatLitral> {
         match self.0 {
             token::Token::FLOAT(_) => Some(self),
@@ -315,7 +309,6 @@ impl Node for BooleanLitral {
 }
 
 impl Expression for BooleanLitral {
-    #[cfg(test)]
     fn into_bool(&self) -> Option<&BooleanLitral> {
         match self.0 {
             token::Token::TRUE | token::Token::FALSE => Some(self),
@@ -343,7 +336,6 @@ impl Node for StringLitral {
 }
 
 impl Expression for StringLitral {
-    #[cfg(test)]
     fn into_string(&self) -> Option<&StringLitral> {
         match self.0 {
             token::Token::STRING(_) => Some(self),
@@ -374,7 +366,6 @@ impl Node for PrefixExpression {
 }
 
 impl Expression for PrefixExpression {
-    #[cfg(test)]
     fn into_prefix_expression(&self) -> Option<&PrefixExpression> {
         match self.token {
             token::Token::BANG | token::Token::MINUS => Some(self),
@@ -411,7 +402,6 @@ impl Node for InfixExpression {
 }
 
 impl Expression for InfixExpression {
-    #[cfg(test)]
     fn into_infix_expression(&self) -> Option<&InfixExpression> {
         use token::Token::*;
         match self.token {
@@ -447,7 +437,6 @@ impl Node for BlockStatement {
 }
 
 impl Statement for BlockStatement {
-    #[cfg(test)]
     fn into_block_statement(&self) -> Option<&BlockStatement> {
         match self.token {
             token::Token::LPAREN => Some(self),
@@ -489,7 +478,6 @@ impl Node for IfExpression {
 }
 
 impl Expression for IfExpression {
-    #[cfg(test)]
     fn into_if_expresion(&self) -> Option<&IfExpression> {
         match self.token {
             token::Token::IF => Some(self),
@@ -527,7 +515,6 @@ impl Node for FunctioinLitral {
 }
 
 impl Expression for FunctioinLitral {
-    #[cfg(test)]
     fn into_funtion_expression(&self) -> Option<&FunctioinLitral> {
         match self.token {
             token::Token::FUNCTION => Some(self),
@@ -564,7 +551,6 @@ impl Node for CallExpression {
 }
 
 impl Expression for CallExpression {
-    #[cfg(test)]
     fn into_call_expression(&self) -> Option<&CallExpression> {
         match self.token {
             token::Token::LPAREN => Some(self),
