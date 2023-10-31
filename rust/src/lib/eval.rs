@@ -20,14 +20,90 @@ pub fn eval(node: &dyn ast::Expression) -> Box<dyn object::Object> {
             let prefix = node.into_prefix_expression().unwrap();
             eval_bang_operator_expression(prefix) as Box<dyn object::Object>
         }
-        token::Token::MINUS => {
+        token::Token::MINUS if node.into_prefix_expression().is_some() => {
             let prefix = node.into_prefix_expression().unwrap();
             eval_minus_prefix_operator_expression(prefix) as Box<dyn object::Object>
         }
+        token::Token::PLUS
+        | token::Token::ASTRISK
+        | token::Token::SLASH
+        | token::Token::EOF
+        | token::Token::MINUS
+        | token::Token::MOD => {
+            let infix = node.into_infix_expression().unwrap();
+            eval_infix_number_expression(&infix.token, infix.left.as_ref(), infix.right.as_ref())
+                as Box<dyn object::Object>
+        }
         _ => Box::new(object::Null),
     }
+}
 
-    //todo!()
+pub fn eval_infix_number_expression(
+    operator: &token::Token,
+    left: &dyn ast::Expression,
+    right: &dyn ast::Expression,
+) -> Box<dyn object::Object> {
+    let left = eval(left);
+    let right = eval(right);
+
+    match (left.object_type(), right.object_type()) {
+        (ObjectType::Integer(l), ObjectType::Integer(r)) => match operator {
+            token::Token::PLUS => Box::new(object::Integer { value: l + r }),
+            token::Token::MINUS => Box::new(object::Integer { value: l - r }),
+            token::Token::ASTRISK => Box::new(object::Integer { value: l * r }),
+
+            token::Token::SLASH => Box::new(object::Float {
+                value: l as f64 / r as f64,
+            }),
+            token::Token::MOD => Box::new(object::Integer { value: l % r }),
+            _ => Box::new(object::Null),
+        },
+        (object::ObjectType::Float(l), object::ObjectType::Float(r)) => match operator {
+            token::Token::PLUS => Box::new(object::Float { value: l + r }),
+            token::Token::MINUS => Box::new(object::Float { value: l - r }),
+            token::Token::ASTRISK => Box::new(object::Float { value: l * r }),
+            token::Token::SLASH => Box::new(object::Float { value: l / r }),
+            token::Token::MOD => Box::new(object::Float { value: l % r }),
+            _ => Box::new(object::Null),
+        },
+        (object::ObjectType::Integer(l), object::ObjectType::Float(r)) => match operator {
+            token::Token::PLUS => Box::new(object::Float {
+                value: l as f64 + r,
+            }),
+            token::Token::MINUS => Box::new(object::Float {
+                value: l as f64 - r,
+            }),
+            token::Token::ASTRISK => Box::new(object::Float {
+                value: l as f64 * r,
+            }),
+            token::Token::SLASH => Box::new(object::Float {
+                value: l as f64 / r,
+            }),
+            token::Token::MOD => Box::new(object::Float {
+                value: l as f64 % r,
+            }),
+            _ => Box::new(object::Null),
+        },
+        (object::ObjectType::Float(l), object::ObjectType::Integer(r)) => match operator {
+            token::Token::PLUS => Box::new(object::Float {
+                value: l + r as f64,
+            }),
+            token::Token::MINUS => Box::new(object::Float {
+                value: l - r as f64,
+            }),
+            token::Token::ASTRISK => Box::new(object::Float {
+                value: l * r as f64,
+            }),
+            token::Token::SLASH => Box::new(object::Float {
+                value: l / r as f64,
+            }),
+            token::Token::MOD => Box::new(object::Float {
+                value: l % r as f64,
+            }),
+            _ => Box::new(object::Null),
+        },
+        _ => Box::new(object::Null),
+    }
 }
 
 pub fn eval_statements(stmts: &Vec<Box<dyn ast::Statement>>) -> Box<dyn object::Object> {
@@ -37,13 +113,40 @@ pub fn eval_statements(stmts: &Vec<Box<dyn ast::Statement>>) -> Box<dyn object::
             token::Token::LET => eval_let_statement(stmt.into_let_statement().unwrap()),
             token::Token::RETURN => eval_return_statement(stmt.into_return_statement().unwrap()),
             token::Token::LBRACE => eval_block_statement(stmt.into_block_statement().unwrap()),
-            token::Token::BANG | token::Token::MINUS => eval_prefix_expression(
-                stmt.into_expresion_statement()
+            token::Token::BANG | token::Token::MINUS
+                if stmt
+                    .into_expresion_statement()
                     .unwrap()
                     .expression
                     .into_prefix_expression()
-                    .unwrap(),
-            ),
+                    .is_some() =>
+            {
+                eval_prefix_expression(
+                    stmt.into_expresion_statement()
+                        .unwrap()
+                        .expression
+                        .into_prefix_expression()
+                        .unwrap(),
+                )
+            }
+            token::Token::PLUS
+            | token::Token::ASTRISK
+            | token::Token::SLASH
+            | token::Token::EOF
+            | token::Token::MINUS
+            | token::Token::MOD => {
+                let infix = stmt
+                    .into_expresion_statement()
+                    .unwrap()
+                    .expression
+                    .into_infix_expression()
+                    .unwrap();
+                eval_infix_number_expression(
+                    &infix.token,
+                    infix.left.as_ref(),
+                    infix.right.as_ref(),
+                )
+            }
             _ => eval_exprassion_statement(stmt.into_expresion_statement().unwrap()),
         }
     }
@@ -306,6 +409,38 @@ mod test {
             let evaluated = eval_statements(&program.statement).object_type();
             match evaluated {
                 ObjectType::Float(f) => assert_eq!(f, input.1),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_infix_number_expression() {
+        let inputs = [("1+1+1", 3), ("2-1-1", 0), ("2*3+1", 7)];
+        for input in inputs {
+            let l = lexer::Lexer::new(input.0.to_string());
+            let mut p = super::super::parser::Parser::new(l);
+            let program = p.parse_program();
+            let evaluated = eval_statements(&program.statement).object_type();
+            match evaluated {
+                ObjectType::Integer(i) => assert_eq!(i, input.1),
+                _ => unreachable!(),
+            }
+        }
+
+        let inputs = [
+            ("1.0+1.0+1.0", 3.0),
+            ("2.0-1.0-1.0", 0.0),
+            ("2/1", 2.0),
+            ("2+1.0", 3.0),
+        ];
+        for input in inputs {
+            let l = lexer::Lexer::new(input.0.to_string());
+            let mut p = super::super::parser::Parser::new(l);
+            let program = p.parse_program();
+            let evaluated = eval_statements(&program.statement).object_type();
+            match evaluated {
+                ObjectType::Float(i) => assert_eq!(i, input.1),
                 _ => unreachable!(),
             }
         }
