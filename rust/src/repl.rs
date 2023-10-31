@@ -2,6 +2,9 @@ mod lib;
 use std::io;
 
 use lib::lexer::Lexer;
+
+use crate::lib::eval;
+
 const PROMPT: &str = ">> ";
 fn main() {
     let mut user_input = String::new();
@@ -11,9 +14,7 @@ fn main() {
         let lex = Lexer::new(user_input.clone());
         let mut p = lib::parser::Parser::new(lex);
         let p = p.parse_program();
-        for stmt in p.statement {
-            println!("{}", stmt.to_string());
-        }
+        println!("{}", eval::eval_statements(&p.statement).inspect());
         println!("");
         user_input.clear();
     }

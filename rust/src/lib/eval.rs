@@ -5,26 +5,24 @@ use super::ast::Node;
 use super::object;
 use super::token;
 
-impl From<Box<dyn object::Object>> for Box<dyn ast::Node> {
-    fn from(obj: Box<dyn object::Object>) -> Self {
-        todo!()
-    }
-}
-
 pub fn eval(node: &dyn ast::Expression) -> Box<dyn object::Object> {
     match node.token() {
-        &token::Token::INT(i) => Box::new(object::Integer { value: i }) as Box<dyn object::Object>,
-        &token::Token::FLOAT(f) => Box::new(object::Float { value: f }) as Box<dyn object::Object>,
-        &token::Token::STRING(ref s) => {
+        token::Token::INT(i) => Box::new(object::Integer { value: *i }) as Box<dyn object::Object>,
+        token::Token::FLOAT(f) => Box::new(object::Float { value: *f }) as Box<dyn object::Object>,
+        token::Token::STRING(ref s) => {
             Box::new(object::StringObj { value: s.clone() }) as Box<dyn object::Object>
         }
-        &token::Token::TRUE => Box::new(object::Boolean { value: true }) as Box<dyn object::Object>,
-        &token::Token::FALSE => {
+        token::Token::TRUE => Box::new(object::Boolean { value: true }) as Box<dyn object::Object>,
+        token::Token::FALSE => {
             Box::new(object::Boolean { value: false }) as Box<dyn object::Object>
         }
-        &token::Token::BANG => {
+        token::Token::BANG => {
             let prefix = node.into_prefix_expression().unwrap();
             eval_bang_operator_expression(prefix) as Box<dyn object::Object>
+        }
+        token::Token::MINUS => {
+            let prefix = node.into_prefix_expression().unwrap();
+            eval_minus_prefix_operator_expression(prefix) as Box<dyn object::Object>
         }
         _ => Box::new(object::Null),
     }
@@ -36,10 +34,10 @@ pub fn eval_statements(stmts: &Vec<Box<dyn ast::Statement>>) -> Box<dyn object::
     let mut result: Box<dyn object::Object> = Box::new(object::Null);
     for stmt in stmts {
         result = match stmt.token() {
-            &token::Token::LET => eval_let_statement(stmt.into_let_statement().unwrap()),
-            &token::Token::RETURN => eval_return_statement(stmt.into_return_statement().unwrap()),
-            &token::Token::LBRACE => eval_block_statement(stmt.into_block_statement().unwrap()),
-            &token::Token::BANG => eval_prefix_expression(
+            token::Token::LET => eval_let_statement(stmt.into_let_statement().unwrap()),
+            token::Token::RETURN => eval_return_statement(stmt.into_return_statement().unwrap()),
+            token::Token::LBRACE => eval_block_statement(stmt.into_block_statement().unwrap()),
+            token::Token::BANG | token::Token::MINUS => eval_prefix_expression(
                 stmt.into_expresion_statement()
                     .unwrap()
                     .expression
@@ -71,36 +69,43 @@ fn eval_block_statement(stmt: &ast::BlockStatement) -> Box<dyn object::Object> {
 fn eval_prefix_expression(stmt: &ast::PrefixExpression) -> Box<dyn object::Object> {
     match stmt.token {
         token::Token::BANG => eval_bang_operator_expression(stmt),
-        token::Token::MINUS => eval_minus_prefix_operator_expression(stmt.right.as_ref()),
+        token::Token::MINUS => eval_minus_prefix_operator_expression(stmt),
         _ => Box::new(object::Null),
     }
 }
 
-fn eval_minus_prefix_operator_expression(right: &dyn ast::Expression) -> Box<dyn object::Object> {
-    todo!()
+fn eval_minus_prefix_operator_expression(
+    prefix: &ast::PrefixExpression,
+) -> Box<dyn object::Object> {
+    let right = eval(prefix.right.as_ref());
+    match right.object_type() {
+        object::ObjectType::Integer(i) => Box::new(object::Integer { value: -i }),
+        object::ObjectType::Float(f) => Box::new(object::Float { value: -f }),
+        _ => Box::new(object::Null),
+    }
 }
 
 fn eval_bang_operator_expression(prefix: &ast::PrefixExpression) -> Box<dyn object::Object> {
     let TRUE = Box::new(object::Boolean { value: true });
     let FALSE = Box::new(object::Boolean { value: false });
     match prefix.right.token() {
-        &token::Token::TRUE => FALSE,
-        &token::Token::FALSE => TRUE,
-        &token::Token::INT(n) => {
-            if n > 0 {
+        token::Token::TRUE => FALSE,
+        token::Token::FALSE => TRUE,
+        token::Token::INT(n) => {
+            if *n > 0 {
                 FALSE
             } else {
                 TRUE
             }
         }
-        &token::Token::FLOAT(n) => {
-            if n > 0.0 {
+        token::Token::FLOAT(n) => {
+            if *n > 0.0 {
                 FALSE
             } else {
                 TRUE
             }
         }
-        &token::Token::STRING(ref s) => {
+        token::Token::STRING(ref s) => {
             if !s.is_empty() {
                 FALSE
             } else {
@@ -109,7 +114,6 @@ fn eval_bang_operator_expression(prefix: &ast::PrefixExpression) -> Box<dyn obje
         }
         _ => {
             let obj: Box<dyn ast::Expression> = eval(prefix.right.as_ref()).into();
-            println!("obj {:?}", obj.to_string());
 
             eval_bang_operator_expression(&ast::PrefixExpression {
                 token: token::Token::BANG,
@@ -264,6 +268,44 @@ mod test {
             let evaluated = eval_statements(&program.statement).object_type();
             match evaluated {
                 ObjectType::Boolean(b) => assert_eq!(b, input.1),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_munis_expression() {
+        let inputs = [
+            (String::from("-5"), -5_i64),
+            (String::from("-10"), -10_i64),
+            (String::from("--5"), 5_i64),
+            (String::from("--10"), 10_i64),
+        ];
+
+        for input in inputs {
+            let l = lexer::Lexer::new(input.0.clone());
+            let mut p = super::super::parser::Parser::new(l);
+            let program = p.parse_program();
+            let evaluated = eval_statements(&program.statement).object_type();
+            match evaluated {
+                ObjectType::Integer(i) => assert_eq!(i, input.1),
+                _ => unreachable!(),
+            }
+        }
+
+        let inputs = [
+            (String::from("-5.5"), -5.5_f64),
+            (String::from("-10.5"), -10.5_f64),
+            (String::from("--5.5"), 5.5_f64),
+            (String::from("--10.5"), 10.5_f64),
+        ];
+        for input in inputs {
+            let l = lexer::Lexer::new(input.0.clone());
+            let mut p = super::super::parser::Parser::new(l);
+            let program = p.parse_program();
+            let evaluated = eval_statements(&program.statement).object_type();
+            match evaluated {
+                ObjectType::Float(f) => assert_eq!(f, input.1),
                 _ => unreachable!(),
             }
         }
