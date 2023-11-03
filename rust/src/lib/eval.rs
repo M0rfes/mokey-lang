@@ -21,7 +21,9 @@ pub fn eval(node: &dyn ast::Expression) -> Box<dyn object::Object> {
             eval_bang_operator_expression(prefix) as Box<dyn object::Object>
         }
         token::Token::MINUS if node.into_prefix_expression().is_some() => {
-            let prefix = node.into_prefix_expression().unwrap();
+            let Some(prefix) = node.into_prefix_expression() else {
+                return Box::new(object::Null);
+            };
             eval_minus_prefix_operator_expression(prefix) as Box<dyn object::Object>
         }
         token::Token::PLUS
@@ -29,24 +31,105 @@ pub fn eval(node: &dyn ast::Expression) -> Box<dyn object::Object> {
         | token::Token::SLASH
         | token::Token::EOF
         | token::Token::MINUS
-        | token::Token::MOD => {
-            let infix = node.into_infix_expression().unwrap();
-            eval_infix_number_expression(&infix.token, infix.left.as_ref(), infix.right.as_ref())
+        | token::Token::MOD
+        | token::Token::NOTEQ
+        | token::Token::EQ
+        | token::Token::LT
+        | token::Token::GT
+        | token::Token::LTEQ
+        | token::Token::GTEQ => {
+            let Some(infix) = node.into_infix_expression() else {
+                return Box::new(object::Null);
+            };
+            eval_infix_expression(&infix.token, infix.left.as_ref(), infix.right.as_ref())
                 as Box<dyn object::Object>
         }
         _ => Box::new(object::Null),
     }
 }
 
-pub fn eval_infix_number_expression(
+fn eval_infix_expression(
     operator: &token::Token,
     left: &dyn ast::Expression,
     right: &dyn ast::Expression,
 ) -> Box<dyn object::Object> {
     let left = eval(left);
     let right = eval(right);
-
     match (left.object_type(), right.object_type()) {
+        (ObjectType::Boolean(l), ObjectType::Boolean(r)) => match operator {
+            token::Token::EQ => Box::new(object::Boolean { value: l == r }),
+            token::Token::NOTEQ => Box::new(object::Boolean { value: l != r }),
+            _ => Box::new(object::Null),
+        },
+        (ObjectType::Integer(l), ObjectType::Integer(r)) => match operator {
+            token::Token::EQ => Box::new(object::Boolean { value: l == r }),
+            token::Token::NOTEQ => Box::new(object::Boolean { value: l != r }),
+            token::Token::LT => Box::new(object::Boolean { value: l < r }),
+            token::Token::GT => Box::new(object::Boolean { value: l > r }),
+            token::Token::LTEQ => Box::new(object::Boolean { value: l <= r }),
+            token::Token::GTEQ => Box::new(object::Boolean { value: l >= r }),
+            _ => Box::new(object::Null),
+        },
+        (ObjectType::Float(l), ObjectType::Float(r)) => match operator {
+            token::Token::EQ => Box::new(object::Boolean { value: l == r }),
+            token::Token::NOTEQ => Box::new(object::Boolean { value: l != r }),
+            token::Token::LT => Box::new(object::Boolean { value: l < r }),
+            token::Token::GT => Box::new(object::Boolean { value: l > r }),
+            token::Token::LTEQ => Box::new(object::Boolean { value: l <= r }),
+            token::Token::GTEQ => Box::new(object::Boolean { value: l >= r }),
+            _ => Box::new(object::Null),
+        },
+        (ObjectType::Integer(l), ObjectType::Float(r)) => match operator {
+            token::Token::EQ => Box::new(object::Boolean {
+                value: l as f64 == r,
+            }),
+            token::Token::NOTEQ => Box::new(object::Boolean {
+                value: l as f64 != r,
+            }),
+            token::Token::LT => Box::new(object::Boolean {
+                value: (l as f64) < r,
+            }),
+            token::Token::GT => Box::new(object::Boolean {
+                value: l as f64 > r,
+            }),
+            token::Token::LTEQ => Box::new(object::Boolean {
+                value: l as f64 <= r,
+            }),
+            token::Token::GTEQ => Box::new(object::Boolean {
+                value: l as f64 >= r,
+            }),
+            _ => Box::new(object::Null),
+        },
+        (ObjectType::Float(l), ObjectType::Integer(r)) => match operator {
+            token::Token::EQ => Box::new(object::Boolean {
+                value: l == r as f64,
+            }),
+            token::Token::NOTEQ => Box::new(object::Boolean {
+                value: l != r as f64,
+            }),
+            token::Token::LT => Box::new(object::Boolean {
+                value: l < r as f64,
+            }),
+            token::Token::GT => Box::new(object::Boolean {
+                value: l > r as f64,
+            }),
+            token::Token::LTEQ => Box::new(object::Boolean {
+                value: l <= r as f64,
+            }),
+            token::Token::GTEQ => Box::new(object::Boolean {
+                value: l >= r as f64,
+            }),
+            _ => Box::new(object::Null),
+        },
+        (ObjectType::StringObj(l), ObjectType::StringObj(r)) => match operator {
+            token::Token::EQ => Box::new(object::Boolean { value: l == r }),
+            token::Token::NOTEQ => Box::new(object::Boolean { value: l != r }),
+            token::Token::LT => Box::new(object::Boolean { value: l < r }),
+            token::Token::GT => Box::new(object::Boolean { value: l > r }),
+            token::Token::LTEQ => Box::new(object::Boolean { value: l <= r }),
+            token::Token::GTEQ => Box::new(object::Boolean { value: l >= r }),
+            _ => Box::new(object::Null),
+        },
         (ObjectType::Integer(l), ObjectType::Integer(r)) => match operator {
             token::Token::PLUS => Box::new(object::Integer { value: l + r }),
             token::Token::MINUS => Box::new(object::Integer { value: l - r }),
@@ -134,19 +217,22 @@ pub fn eval_statements(stmts: &Vec<Box<dyn ast::Statement>>) -> Box<dyn object::
             | token::Token::SLASH
             | token::Token::EOF
             | token::Token::MINUS
-            | token::Token::MOD => {
+            | token::Token::MOD
+            | token::Token::NOTEQ
+            | token::Token::EQ
+            | token::Token::LT
+            | token::Token::GT
+            | token::Token::LTEQ
+            | token::Token::GTEQ => {
                 let infix = stmt
                     .into_expresion_statement()
                     .unwrap()
                     .expression
                     .into_infix_expression()
                     .unwrap();
-                eval_infix_number_expression(
-                    &infix.token,
-                    infix.left.as_ref(),
-                    infix.right.as_ref(),
-                )
+                eval_infix_expression(&infix.token, infix.left.as_ref(), infix.right.as_ref())
             }
+
             _ => eval_exprassion_statement(stmt.into_expresion_statement().unwrap()),
         }
     }
@@ -441,6 +527,29 @@ mod test {
             let evaluated = eval_statements(&program.statement).object_type();
             match evaluated {
                 ObjectType::Float(i) => assert_eq!(i, input.1),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_infix_logic_expression() {
+        let inputs = [
+            ("1==1", true),
+            ("1!=1", false),
+            ("1<1", false),
+            ("1>1", false),
+            ("1<=1", true),
+            ("1>=1", true),
+        ];
+        for input in inputs {
+            let l = lexer::Lexer::new(input.0.to_string());
+            let mut p = super::super::parser::Parser::new(l);
+            let program = p.parse_program();
+            let evaluated = eval_statements(&program.statement);
+            println!("{:?}", evaluated.inspect());
+            match evaluated.object_type() {
+                ObjectType::Boolean(i) => assert_eq!(i, input.1),
                 _ => unreachable!(),
             }
         }
