@@ -1,11 +1,6 @@
 /// Represents a token in the Monkey programming language
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    /// Represents invalid or unexpected tokens
-    Illegal,
-    /// End of file marker
-    Eof,
-
     /// Identifiers and literals
     #[allow(missing_docs)]
     Ident(String),
@@ -17,43 +12,40 @@ pub enum Token {
     Str(String),
 
     /// Assignment operators
-    Assign,      // =
-    AddAssign,   // +=
-    SubAssign,   // -=
-    MulAssign,   // *=
-    DivAssign,   // /=
+    Assign, // =
 
     /// Arithmetic operators
-    Add,         // +
-    Sub,         // -
-    Mul,         // *
-    Div,         // /
+    Add, // +
+    Sub,   // -
+    Mul,   // *
+    Div,   // /
+    Power, // **
 
     /// Unary operators
-    Not,         // !
-    Increment,   // ++
-    Decrement,   // --
+    Not, // !
+    Increment, // ++
+    Decrement, // --
 
     /// Logical operators
-    LogicalOr,   // ||
-    LogicalAnd,  // &&
-    LogicalXor,  // ^^
+    LogicalOr, // ||
+    LogicalAnd, // &&
+    LogicalXor, // ^^
 
     /// Bitwise operators
-    BitwiseOr,   // |
-    BitwiseAnd,  // &
-    BitwiseNot,  // ~
-    BitwiseXor,  // ^
-    ShiftLeft,   // <<
-    ShiftRight,  // >>
+    BitwiseOr, // |
+    BitwiseAnd, // &
+    BitwiseNot, // ~
+    BitwiseXor, // ^
+    ShiftLeft,  // <<
+    ShiftRight, // >>
 
     /// Comparison operators
-    Less,        // <
-    LessEq,      // <=
-    Greater,     // >
-    GreaterEq,   // >=
-    Equal,       // ==
-    NotEqual,    // !=
+    Less, // <
+    LessEq,    // <=
+    Greater,   // >
+    GreaterEq, // >=
+    Equal,     // ==
+    NotEqual,  // !=
 
     /// Delimiters
     Comma,
@@ -76,7 +68,7 @@ pub enum Token {
 impl Token {
     /// Converts an identifier string into a keyword token if applicable,
     /// otherwise returns an Ident token
-    pub fn from_ident(ident: &str) -> Token {
+    fn from_ident(ident: &str) -> Token {
         match ident {
             "fn" => Self::Function,
             "let" => Self::Let,
@@ -98,5 +90,11 @@ impl std::fmt::Display for Token {
             Self::Float(n) => write!(f, "{}", n),
             _ => write!(f, "{:?}", self),
         }
+    }
+}
+
+impl<T: AsRef<str>> From<T> for Token {
+    fn from(value: T) -> Self {
+        Token::from_ident(value.as_ref())
     }
 }

@@ -106,10 +106,74 @@ impl<'a> Iterator for Lexer<'a> {
         self.skip_whitespace();
 
         let token = match self.current? {
+            '=' if self.peek() == Some('=') => {
+                self.advance();
+                self.advance();
+                Ok(Token::Equal)
+            }
+            '!' if self.peek() == Some('=') => {
+                self.advance();
+                self.advance();
+                Ok(Token::NotEqual)
+            }
+            '<' if self.peek() == Some('=') => {
+                self.advance();
+                self.advance();
+                Ok(Token::LessEq)
+            }
+            '>' if self.peek() == Some('=') => {
+                self.advance();
+                self.advance();
+                Ok(Token::GreaterEq)
+            }
+            '|' if self.peek() == Some('|') => {
+                self.advance();
+                self.advance();
+                Ok(Token::LogicalOr)
+            }
+            '&' if self.peek() == Some('&') => {
+                self.advance();
+                self.advance();
+                Ok(Token::LogicalAnd)
+            }
+            '^' if self.peek() == Some('^') => {
+                self.advance();
+                self.advance();
+                Ok(Token::LogicalXor)
+            }
+            '|' => Ok(Token::BitwiseOr),
+            '&' => Ok(Token::BitwiseAnd),
+            '~' => Ok(Token::BitwiseNot),
+            '^' => Ok(Token::BitwiseXor),
+            '<' if self.peek() == Some('<') => {
+                self.advance();
+                self.advance();
+                Ok(Token::ShiftLeft)
+            }
+            '>' if self.peek() == Some('>') => {
+                self.advance();
+                self.advance();
+                Ok(Token::ShiftRight)
+            }
+            '+' if self.peek() == Some('+') => {
+                self.advance();
+                self.advance();
+                Ok(Token::Increment)
+            }
+            '-' if self.peek() == Some('-') => {
+                self.advance();
+                self.advance();
+                Ok(Token::Decrement)
+            }
             '=' => Ok(Token::Assign),
             '+' => Ok(Token::Add),
             '-' => Ok(Token::Sub),
             '!' => Ok(Token::Not),
+            '*' if self.peek() == Some('*') => {
+                self.advance();
+                self.advance();
+                Ok(Token::Power)
+            }
             '*' => Ok(Token::Mul),
             '/' => Ok(Token::Div),
             ';' => Ok(Token::Semicolon),
@@ -118,12 +182,25 @@ impl<'a> Iterator for Lexer<'a> {
             '{' => Ok(Token::LBrace),
             '}' => Ok(Token::RBrace),
             ',' => Ok(Token::Comma),
-            ch if ch.is_alphabetic() || ch == '_' => {
-                match self.read_identifier() {
-                    Ok(ident) => Ok(Token::from_ident(&ident)),
-                    Err(err) => Err(err),
+            '<' => Ok(Token::Less),
+            '>' => Ok(Token::Greater),
+            '"' => {
+                self.advance();
+                let mut string = String::new();
+                while let Some(ch) = self.current {
+                    if ch == '"' {
+                        break;
+                    }
+                    string.push(ch);
+                    self.advance();
                 }
+                self.advance();
+                Ok(Token::Str(string))
             }
+            ch if ch.is_alphabetic() || ch == '_' => match self.read_identifier() {
+                Ok(ident) => Ok(ident.into()),
+                Err(err) => Err(err),
+            },
             ch if ch.is_ascii_digit() => self.read_number(),
             ch => Err(LexerError::UnexpectedCharacter(ch)),
         };
@@ -135,6 +212,8 @@ impl<'a> Iterator for Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::token;
+
     use super::*;
 
     #[test]
@@ -143,7 +222,27 @@ mod tests {
             let ten = 10;
             let add = fn(x, y) {
                 x + y;
-            };"#;
+            };
+            let result = add(five, ten);
+            let is_less = five < ten;
+            let is_greater = five > ten;
+            let is2 = 2;
+            let float = 3.14;
+            let float2_3 = 0.1;
+            let float3_t = 0.1;
+            !-/*5;
+            if (5 < 10) {
+                return true;
+            } else {
+                return false;
+            };
+            2 ** 3;
+            2 <= 3;
+            2 >= 3;
+            2 == 3;
+            2 != 3;
+            "Hello, World!";
+            "#;
 
         let expected = vec![
             Token::Let,
@@ -156,11 +255,119 @@ mod tests {
             Token::Assign,
             Token::Int(10),
             Token::Semicolon,
+            Token::Let,
+            Token::Ident("add".to_string()),
+            Token::Assign,
+            Token::Function,
+            Token::LParen,
+            Token::Ident("x".to_string()),
+            Token::Comma,
+            Token::Ident("y".to_string()),
+            Token::RParen,
+            Token::LBrace,
+            Token::Ident("x".to_string()),
+            Token::Add,
+            Token::Ident("y".to_string()),
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("result".to_string()),
+            Token::Assign,
+            Token::Ident("add".to_string()),
+            Token::LParen,
+            Token::Ident("five".to_string()),
+            Token::Comma,
+            Token::Ident("ten".to_string()),
+            Token::RParen,
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("is_less".to_string()),
+            Token::Assign,
+            Token::Ident("five".to_string()),
+            Token::Less,
+            Token::Ident("ten".to_string()),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("is_greater".to_string()),
+            Token::Assign,
+            Token::Ident("five".to_string()),
+            Token::Greater,
+            Token::Ident("ten".to_string()),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("is2".to_string()),
+            Token::Assign,
+            Token::Int(2),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("float".to_string()),
+            Token::Assign,
+            Token::Float(3.14),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("float2_3".to_string()),
+            Token::Assign,
+            Token::Float(0.1),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("float3_t".to_string()),
+            Token::Assign,
+            Token::Float(0.1),
+            Token::Semicolon,
+            Token::Not,
+            Token::Sub,
+            Token::Div,
+            Token::Mul,
+            Token::Int(5),
+            Token::Semicolon,
+            Token::If,
+            Token::LParen,
+            Token::Int(5),
+            Token::Less,
+            Token::Int(10),
+            Token::RParen,
+            Token::LBrace,
+            Token::Return,
+            Token::True,
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Else,
+            Token::LBrace,
+            Token::Return,
+            Token::False,
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Semicolon,
+            Token::Int(2),
+            Token::Power,
+            Token::Int(3),
+            Token::Semicolon,
+            Token::Int(2),
+            Token::LessEq,
+            Token::Int(3),
+            Token::Semicolon,
+            Token::Int(2),
+            Token::GreaterEq,
+            Token::Int(3),
+            Token::Semicolon,
+            Token::Int(2),
+            Token::Equal,
+            Token::Int(3),
+            Token::Semicolon,
+            Token::Int(2),
+            Token::NotEqual,
+            Token::Int(3),
+            Token::Semicolon,
+            Token::Str("Hello, World!".to_string()),
             // ... rest of the tokens
         ];
         let lexer = Lexer::new(input);
+        let mut i = 0;
         for (token, expected) in lexer.zip(expected.into_iter()) {
-            assert_eq!(token.unwrap(), expected);
+            let token = token.unwrap();
+            assert_eq!(token, expected, "Expected {:?} but got {:?} at {}", expected, token,i);
+            i+=1;
         }
     }
 }
