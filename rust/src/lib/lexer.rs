@@ -8,7 +8,7 @@ pub struct Lexer<'a> {
     current: Option<char>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum LexerError {
     InvalidNumber(String),
     UnexpectedCharacter(char),
@@ -30,7 +30,7 @@ impl<'a> Lexer<'a> {
         self.current
     }
 
-    fn peek(&mut self) -> Option<char> {
+    pub(crate) fn peek(&mut self) -> Option<char> {
         self.input.peek().copied()
     }
 
@@ -366,8 +366,12 @@ mod tests {
         let mut i = 0;
         for (token, expected) in lexer.zip(expected.into_iter()) {
             let token = token.unwrap();
-            assert_eq!(token, expected, "Expected {:?} but got {:?} at {}", expected, token,i);
-            i+=1;
+            assert_eq!(
+                token, expected,
+                "Expected {:?} but got {:?} at {}",
+                expected, token, i
+            );
+            i += 1;
         }
     }
 }
