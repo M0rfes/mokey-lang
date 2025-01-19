@@ -330,8 +330,7 @@ impl<'a> Parser<'a> {
                 left = self.parse_postfix_expression(left)?;
                 continue;
             }
-            self.next()?;
-            left = self.parse_infix_expression(left, &token)?;
+            left = self.parse_infix_expression(left)?;
         }
         Ok(left)
     }
@@ -356,13 +355,13 @@ impl<'a> Parser<'a> {
     fn parse_infix_expression(
         &mut self,
         left: Box<dyn Expression>,
-        operator: &Token,
     ) -> Result<Box<dyn Expression>, ParseError> {
+        let operator = self.next()?;
         let precedence = operator.precedence();
         let right = self.parse_expression(precedence)?;
         Ok(Box::new(Infix {
             left,
-            operator: operator.clone(),
+            operator,
             right,
         }))
     }
@@ -371,7 +370,6 @@ impl<'a> Parser<'a> {
         &mut self,
         left: Box<dyn Expression>,
     ) -> Result<Box<dyn Expression>, ParseError> {
-        println!("parse_postfix_expression ------------> {:?}", self.lexer);
         let operator = self.next()?;
         Ok(Box::new(Postfix { left, operator }))
     }
@@ -427,5 +425,21 @@ mod tests {
         let statement = statement.unwrap();
         let postfix = statement.0.as_any().downcast_ref::<Postfix>();
         assert!(postfix.is_some());
+    }
+
+    #[test]
+    fn test_infix_expression() {
+        let input = "x + 5;";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let infix = statement.0.as_any().downcast_ref::<Infix>();
+        assert!(infix.is_some());
     }
 }
