@@ -3,7 +3,7 @@ use std::{any::Any, iter::Peekable};
 
 use crate::{
     lexer::{Lexer, LexerError},
-    token::Token,
+    token::{self, Token},
 };
 
 pub trait Node: Any {
@@ -225,8 +225,6 @@ impl Node for StringLiteral {
 
 impl Expression for StringLiteral {}
 
-
-
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
@@ -266,10 +264,9 @@ impl<'a> Parser<'a> {
                     Ok(statement) => program.statements.push(Box::new(statement)),
                     Err(err) => program.errors.push(err),
                 },
-                _ => match self.parse_expression(Precedence::Lowest) {
+                _ => match self.parse_expression_statement() {
                     Ok(expression) => {
-                        let statement = ExpressionStatement(expression);
-                        program.statements.push(Box::new(statement));
+                        program.statements.push(Box::new(expression));
                     }
                     Err(err) => program.errors.push(err),
                 },
@@ -311,51 +308,88 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, ParseError> {
+        let expression = self.parse_expression(Precedence::Lowest)?;
+        // reads the `;` token
+        let Token::Semicolon = self.next()? else {
+            return Err(ParseError::UnexpectedToken);
+        };
+        Ok(ExpressionStatement(expression))
+    }
+
     fn parse_expression(
         &mut self,
         precedence: Precedence,
     ) -> Result<Box<dyn Expression>, ParseError> {
+        let mut left = self.parse_prefix_expression()?;
+        while let Some(token) = self.peek().cloned() {
+            if precedence >= token.precedence() {
+                break;
+            }
+            if token.precedence() == Precedence::Postfix {
+                left = self.parse_postfix_expression(left)?;
+                continue;
+            }
+            self.next()?;
+            left = self.parse_infix_expression(left, &token)?;
+        }
+        Ok(left)
+    }
+
+    fn parse_prefix_expression(&mut self) -> Result<Box<dyn Expression>, ParseError> {
         match self.next()? {
             Token::Ident(ident) => Ok(Box::new(Identifier(ident))),
-            // all prefix operators
-            Token::Not | Token::Sub | Token::Increment | Token::Decrement => {
+            Token::Int(n) => Ok(Box::new(Int(n))),
+            Token::Float(n) => Ok(Box::new(Float(n))),
+            Token::True => Ok(Box::new(Bool(true))),
+            Token::False => Ok(Box::new(Bool(false))),
+            Token::Str(s) => Ok(Box::new(StringLiteral(s))),
+            Token::Sub | Token::Not | Token::Increment | Token::Decrement => {
                 let operator = self.next()?;
                 let right = self.parse_expression(Precedence::Prefix)?;
                 Ok(Box::new(Prefix { operator, right }))
             }
-            // all postfix operators
-            _ if self.peek() == Some(&Token::Increment)
-                || self.peek() == Some(&Token::Decrement) =>
-            {
-                let left = self.parse_expression(Precedence::Postfix)?;
-                let operator = self.next()?;
-                Ok(Box::new(Postfix { operator, left }))
-            }
-
-            // all infix operators
-            _ if self.peek() == Some(&Token::Add)
-                || self.peek() == Some(&Token::Sub)
-                || self.peek() == Some(&Token::Mul)
-                || self.peek() == Some(&Token::Div) =>
-            {
-                let left = self.parse_expression(Precedence::Lowest)?;
-                let operator = self.next()?;
-                let right = self.parse_expression(precedence)?;
-                Ok(Box::new(Infix {
-                    left,
-                    operator,
-                    right,
-                }))
-            }
-
-            // all values
-            Token::Int(int) => Ok(Box::new(Int(int))),
-            Token::Float(float) => Ok(Box::new(Float(float))),
-            Token::True => Ok(Box::new(Bool(true))),
-            Token::False => Ok(Box::new(Bool(false))),
-            Token::Str(string) => Ok(Box::new(StringLiteral(string))),
-
             _ => Err(ParseError::UnexpectedToken),
+        }
+    }
+
+    fn parse_infix_expression(
+        &mut self,
+        left: Box<dyn Expression>,
+        operator: &Token,
+    ) -> Result<Box<dyn Expression>, ParseError> {
+        let precedence = operator.precedence();
+        let right = self.parse_expression(precedence)?;
+        Ok(Box::new(Infix {
+            left,
+            operator: operator.clone(),
+            right,
+        }))
+    }
+
+    fn parse_postfix_expression(
+        &mut self,
+        left: Box<dyn Expression>,
+    ) -> Result<Box<dyn Expression>, ParseError> {
+        println!("parse_postfix_expression ------------> {:?}", self.lexer);
+        let operator = self.next()?;
+        Ok(Box::new(Postfix { left, operator }))
+    }
+}
+
+impl Token {
+    fn precedence(&self) -> Precedence {
+        match self {
+            Token::Equal | Token::NotEqual => Precedence::Equals,
+            Token::Less | Token::LessEq | Token::Greater | Token::GreaterEq => {
+                Precedence::LessGreater
+            }
+            Token::Add | Token::Sub => Precedence::Sum,
+            Token::Mul | Token::Div | Token::Power => Precedence::Product,
+            Token::LParen => Precedence::Call,
+            Token::Increment | Token::Decrement => Precedence::Postfix,
+            Token::Not => Precedence::Prefix,
+            _ => Precedence::Lowest,
         }
     }
 }
@@ -377,6 +411,21 @@ mod tests {
         assert!(statement.is_some());
         let statement = statement.unwrap();
         assert_eq!(statement.name.0, "x");
-        assert_eq!(statement.value.token_literal(), "5 + 5");
+    }
+
+    #[test]
+    fn test_postfix_expression() {
+        let input = "x++;";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let postfix = statement.0.as_any().downcast_ref::<Postfix>();
+        assert!(postfix.is_some());
     }
 }

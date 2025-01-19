@@ -5,10 +5,9 @@ use std::str::Chars;
 #[derive(Debug)]
 pub struct Lexer<'a> {
     input: Peekable<Chars<'a>>,
-    current: Option<char>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum LexerError {
     InvalidNumber(String),
     UnexpectedCharacter(char),
@@ -17,17 +16,9 @@ pub enum LexerError {
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
-        let mut chars = input.chars().peekable();
-        let current = chars.next();
         Self {
-            input: chars,
-            current,
+            input: input.chars().peekable(),
         }
-    }
-
-    fn advance(&mut self) -> Option<char> {
-        self.current = self.input.next();
-        self.current
     }
 
     pub(crate) fn peek(&mut self) -> Option<char> {
@@ -35,51 +26,45 @@ impl<'a> Lexer<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.current {
+        while let Some(ch) = self.peek() {
             if !ch.is_whitespace() {
                 break;
             }
-            self.advance();
+            self.input.next();
         }
     }
 
-    fn read_identifier(&mut self) -> Result<String, LexerError> {
-        let mut identifier = String::new();
-
-        if let Some(ch) = self.current {
-            if ch.is_ascii_digit() {
-                return Err(LexerError::InvalidStartOfIdentifier(ch));
-            }
-            identifier.push(ch);
+    fn read_identifier(&mut self, current: char) -> Result<String, LexerError> {
+        if current.is_ascii_digit() {
+            return Err(LexerError::InvalidStartOfIdentifier(current));
         }
+        let mut identifier = String::new();
+        identifier.push(current);
 
         while let Some(ch) = self.peek() {
             if !ch.is_alphabetic() && ch != '_' && !ch.is_ascii_digit() {
                 break;
             }
             identifier.push(ch);
-            self.advance();
+            self.input.next();
         }
 
         Ok(identifier)
     }
 
-    fn read_number(&mut self) -> Result<Token, LexerError> {
+    fn read_number(&mut self, current: char) -> Result<Token, LexerError> {
         let mut number = String::new();
+        number.push(current);
         let mut has_decimal = false;
-
-        if let Some(ch) = self.current {
-            number.push(ch);
-        }
 
         while let Some(ch) = self.peek() {
             if ch == '.' && !has_decimal {
                 has_decimal = true;
                 number.push(ch);
-                self.advance();
+                self.input.next();
             } else if ch.is_ascii_digit() {
                 number.push(ch);
-                self.advance();
+                self.input.next();
             } else {
                 break;
             }
@@ -105,40 +90,33 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.skip_whitespace();
 
-        let token = match self.current? {
+        let token = match self.input.next()? {
             '=' if self.peek() == Some('=') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::Equal)
             }
             '!' if self.peek() == Some('=') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::NotEqual)
             }
             '<' if self.peek() == Some('=') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::LessEq)
             }
             '>' if self.peek() == Some('=') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::GreaterEq)
             }
             '|' if self.peek() == Some('|') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::LogicalOr)
             }
             '&' if self.peek() == Some('&') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::LogicalAnd)
             }
             '^' if self.peek() == Some('^') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::LogicalXor)
             }
             '|' => Ok(Token::BitwiseOr),
@@ -146,23 +124,19 @@ impl<'a> Iterator for Lexer<'a> {
             '~' => Ok(Token::BitwiseNot),
             '^' => Ok(Token::BitwiseXor),
             '<' if self.peek() == Some('<') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::ShiftLeft)
             }
             '>' if self.peek() == Some('>') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::ShiftRight)
             }
             '+' if self.peek() == Some('+') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::Increment)
             }
             '-' if self.peek() == Some('-') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::Decrement)
             }
             '=' => Ok(Token::Assign),
@@ -170,8 +144,7 @@ impl<'a> Iterator for Lexer<'a> {
             '-' => Ok(Token::Sub),
             '!' => Ok(Token::Not),
             '*' if self.peek() == Some('*') => {
-                self.advance();
-                self.advance();
+                self.input.next();
                 Ok(Token::Power)
             }
             '*' => Ok(Token::Mul),
@@ -185,27 +158,25 @@ impl<'a> Iterator for Lexer<'a> {
             '<' => Ok(Token::Less),
             '>' => Ok(Token::Greater),
             '"' => {
-                self.advance();
                 let mut string = String::new();
-                while let Some(ch) = self.current {
+                while let Some(ch) = self.peek() {
                     if ch == '"' {
                         break;
                     }
                     string.push(ch);
-                    self.advance();
+                    self.input.next();
                 }
-                self.advance();
+                self.input.next(); // consume closing quote
                 Ok(Token::Str(string))
             }
-            ch if ch.is_alphabetic() || ch == '_' => match self.read_identifier() {
+            ch if ch.is_alphabetic() || ch == '_' => match self.read_identifier(ch) {
                 Ok(ident) => Ok(ident.into()),
                 Err(err) => Err(err),
             },
-            ch if ch.is_ascii_digit() => self.read_number(),
+            ch if ch.is_ascii_digit() => self.read_number(ch),
             ch => Err(LexerError::UnexpectedCharacter(ch)),
         };
 
-        self.advance();
         Some(token)
     }
 }
@@ -242,6 +213,11 @@ mod tests {
             2 == 3;
             2 != 3;
             "Hello, World!";
+            ++x;
+            --x;
+            x++;
+            x--;
+            ++add1;
             "#;
 
         let expected = vec![
@@ -360,11 +336,28 @@ mod tests {
             Token::Int(3),
             Token::Semicolon,
             Token::Str("Hello, World!".to_string()),
+            Token::Semicolon,
+            Token::Increment,
+            Token::Ident("x".to_string()),
+            Token::Semicolon,
+            Token::Decrement,
+            Token::Ident("x".to_string()),
+            Token::Semicolon,
+            Token::Ident("x".to_string()),
+            Token::Increment,
+            Token::Semicolon,
+            Token::Ident("x".to_string()),
+            Token::Decrement,
+            Token::Semicolon,
+            Token::Increment,
+            Token::Ident("add1".to_string()),
+            Token::Semicolon,
             // ... rest of the tokens
         ];
         let lexer = Lexer::new(input);
         let mut i = 0;
         for (token, expected) in lexer.zip(expected.into_iter()) {
+            println!("{:?}", token);
             let token = token.unwrap();
             assert_eq!(
                 token, expected,
