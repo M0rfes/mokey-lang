@@ -1,22 +1,23 @@
 use core::str;
-use std::{any::Any, iter::Peekable};
+use std::{any::Any, fmt, iter::Peekable};
 
 use crate::{
     lexer::{Lexer, LexerError},
     token::{self, Token},
 };
 
-pub trait Node: Any {
+// impl std::fmt::Display
+pub trait Node: Any + std::fmt::Display {
     fn token_literal(&self) -> String;
     fn as_any(&self) -> &dyn Any;
 }
 
-pub trait Statement: Node {}
+pub trait Statement: Node + std::fmt::Display {}
 
-pub trait Expression: Node {}
+pub trait Expression: Node + std::fmt::Display {}
 
 #[derive(Debug)]
-enum ParseError {
+pub enum ParseError {
     UnexpectedToken,
     UnexpectedEOF,
     LexerError(LexerError),
@@ -45,11 +46,20 @@ impl Node for Program {
             return String::new();
         }
         let strings: Vec<String> = self.statements.iter().map(|s| s.token_literal()).collect();
-        strings.join(" ")
+        strings.join("\n")
     }
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl std::fmt::Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for statement in &self.statements {
+            writeln!(f, "{}", statement)?;
+        }
+        Ok(())
     }
 }
 
@@ -66,6 +76,12 @@ impl Node for Identifier {
 }
 
 impl Expression for Identifier {}
+
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 struct LetStatement {
     name: Identifier,
@@ -84,6 +100,12 @@ impl Node for LetStatement {
 
 impl Statement for LetStatement {}
 
+impl fmt::Display for LetStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "let {} = {};", self.name, self.value)
+    }
+}
+
 struct ReturnStatement(Box<dyn Expression>);
 
 impl Node for ReturnStatement {
@@ -97,6 +119,12 @@ impl Node for ReturnStatement {
 }
 
 impl Statement for ReturnStatement {}
+
+impl fmt::Display for ReturnStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "return {};", self.0)
+    }
+}
 
 struct ExpressionStatement(Box<dyn Expression>);
 
@@ -112,6 +140,12 @@ impl Node for ExpressionStatement {
 
 impl Statement for ExpressionStatement {}
 
+impl fmt::Display for ExpressionStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{};", self.0)
+    }
+}
+
 struct Prefix {
     operator: Token,
     right: Box<dyn Expression>,
@@ -124,6 +158,14 @@ impl Node for Prefix {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl Expression for Prefix {}
+
+impl fmt::Display for Prefix {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}{})", self.operator, self.right)
     }
 }
 
@@ -144,7 +186,11 @@ impl Node for Postfix {
 
 impl Expression for Postfix {}
 
-impl Expression for Prefix {}
+impl fmt::Display for Postfix {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}{})", self.left, self.operator)
+    }
+}
 
 struct Infix {
     left: Box<dyn Expression>,
@@ -169,6 +215,12 @@ impl Node for Infix {
 
 impl Expression for Infix {}
 
+impl fmt::Display for Infix {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({} {} {})", self.left, self.operator, self.right)
+    }
+}
+
 struct Int(i64);
 
 impl Node for Int {
@@ -183,6 +235,12 @@ impl Node for Int {
 
 impl Expression for Int {}
 
+impl fmt::Display for Int {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 struct Float(f64);
 
 impl Node for Float {
@@ -192,6 +250,12 @@ impl Node for Float {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl fmt::Display for Float {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -211,6 +275,11 @@ impl Node for Bool {
 
 impl Expression for Bool {}
 
+impl fmt::Display for Bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 struct StringLiteral(String);
 
 impl Node for StringLiteral {
@@ -224,6 +293,69 @@ impl Node for StringLiteral {
 }
 
 impl Expression for StringLiteral {}
+
+impl fmt::Display for StringLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "\"{}\"", self.0)
+    }
+}
+
+struct BlockStatement {
+    statements: Vec<Box<dyn Statement>>,
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        if self.statements.is_empty() {
+            return String::new();
+        }
+        let strings: Vec<String> = self.statements.iter().map(|s| s.token_literal()).collect();
+        strings.join("\n")
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Statement for BlockStatement {}
+
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for statement in &self.statements {
+            writeln!(f, "{}\n", statement)?;
+        }
+        Ok(())
+    }
+}
+
+pub struct IfExpression {
+    condition: Box<dyn Expression>,
+    consequence: BlockStatement,
+    alternative: Option<BlockStatement>,
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        "if".to_string()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Expression for IfExpression {}
+
+impl fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "if{}{}", self.condition, self.consequence)?;
+        if let Some(alt) = &self.alternative {
+            write!(f, "else {}", alt)?;
+        }
+        Ok(())
+    }
+}
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
@@ -254,29 +386,28 @@ impl<'a> Parser<'a> {
             errors: Vec::new(),
         };
 
-        while let Some(token) = self.peek() {
-            match token {
-                Token::Let => match self.parse_let_statement() {
-                    Ok(statement) => program.statements.push(Box::new(statement)),
-                    Err(err) => program.errors.push(err),
-                },
-                Token::Return => match self.parse_return_statement() {
-                    Ok(statement) => program.statements.push(Box::new(statement)),
-                    Err(err) => program.errors.push(err),
-                },
-                _ => match self.parse_expression_statement() {
-                    Ok(expression) => {
-                        program.statements.push(Box::new(expression));
-                    }
-                    Err(err) => program.errors.push(err),
-                },
+        while let Some(_) = self.peek() {
+            match self.parse_statement() {
+                Ok(statement) => program.statements.push(statement),
+                Err(err) => {
+                    program.errors.push(err);
+                    self.next();
+                }
             }
         }
 
         program
     }
 
-    fn parse_let_statement(&mut self) -> Result<LetStatement, ParseError> {
+    fn parse_statement(&mut self) -> Result<Box<dyn Statement>, ParseError> {
+        match self.peek() {
+            Some(Token::Let) => self.parse_let_statement(),
+            Some(Token::Return) => self.parse_return_statement(),
+            _ => self.parse_expression_statement(),
+        }
+    }
+
+    fn parse_let_statement(&mut self) -> Result<Box<dyn Statement>, ParseError> {
         // reads the `let` token
         self.next()?;
         let name = self.parse_identifier()?;
@@ -287,10 +418,10 @@ impl<'a> Parser<'a> {
         let Token::Semicolon = self.next()? else {
             return Err(ParseError::UnexpectedToken);
         };
-        Ok(LetStatement { name, value })
+        Ok(Box::new(LetStatement { name, value }))
     }
 
-    fn parse_return_statement(&mut self) -> Result<ReturnStatement, ParseError> {
+    fn parse_return_statement(&mut self) -> Result<Box<dyn Statement>, ParseError> {
         // reads the `return` token
         self.next()?;
         let value = self.parse_expression(Precedence::Lowest)?;
@@ -298,7 +429,7 @@ impl<'a> Parser<'a> {
         let Token::Semicolon = self.next()? else {
             return Err(ParseError::UnexpectedToken);
         };
-        Ok(ReturnStatement(value))
+        Ok(Box::new(ReturnStatement(value)))
     }
 
     fn parse_identifier(&mut self) -> Result<Identifier, ParseError> {
@@ -308,13 +439,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, ParseError> {
+    fn parse_expression_statement(&mut self) -> Result<Box<dyn Statement>, ParseError> {
         let expression = self.parse_expression(Precedence::Lowest)?;
         // reads the `;` token
         let Token::Semicolon = self.next()? else {
             return Err(ParseError::UnexpectedToken);
         };
-        Ok(ExpressionStatement(expression))
+        Ok(Box::new(ExpressionStatement(expression)))
     }
 
     fn parse_expression(
@@ -348,8 +479,53 @@ impl<'a> Parser<'a> {
                 let right = self.parse_expression(Precedence::Prefix)?;
                 Ok(Box::new(Prefix { operator, right }))
             }
+            Token::If => {
+                let condition = self.parse_expression(Precedence::Lowest)?;
+                let consequence = self.parse_block_statement()?;
+                let alternative = if let Some(Token::Else) = self.peek() {
+                    self.next()?;
+                    Some(self.parse_block_statement()?)
+                } else {
+                    None
+                };
+                Ok(Box::new(IfExpression {
+                    condition,
+                    consequence,
+                    alternative,
+                }))
+            }
+            Token::LParen => {
+                let expression = self.parse_expression(Precedence::Lowest)?;
+                if self.next()? != Token::RParen {
+                    return Err(ParseError::UnexpectedToken);
+                }
+                Ok(expression)
+            }
             _ => Err(ParseError::UnexpectedToken),
         }
+    }
+    fn parse_block_statement(&mut self) -> Result<BlockStatement, ParseError> {
+        // reads the `{` token
+        if self.next()? != Token::LBrace {
+            return Err(ParseError::UnexpectedToken);
+        }
+        let mut statements = Vec::new();
+        while let Some(token) = self.peek() {
+            if *token == Token::RBrace {
+                break;
+            }
+            match self.parse_statement() {
+                Ok(statement) => statements.push(statement),
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        }
+        // reads the `}` token
+        if self.next()? != Token::RBrace {
+            return Err(ParseError::UnexpectedToken);
+        }
+        Ok(BlockStatement { statements })
     }
 
     fn parse_infix_expression(

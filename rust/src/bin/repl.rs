@@ -1,6 +1,6 @@
+use lib::{ast::Parser, lexer::Lexer};
 use std::io::{self, Write};
-use lib::lexer::Lexer;
-fn main(){
+fn main() {
     loop {
         print!(">>> ");
         io::stdout().flush().unwrap();
@@ -10,9 +10,13 @@ fn main(){
             break;
         }
         let lexer = Lexer::new(&input);
-        for token in lexer {
-            println!("{:?}", token.unwrap());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        for error in program.errors {
+            eprintln!("{:?}", error);
+        }
+        for statement in program.statements {
+            println!("{}", statement);
         }
     }
-
 }
