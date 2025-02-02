@@ -1,9 +1,8 @@
-use core::str;
-use std::{any::Any, fmt, iter::Peekable};
+use std::{any::Any, f32::consts::E, fmt, iter::Peekable};
 
 use crate::{
     lexer::{Lexer, LexerError},
-    token::{self, Token},
+    token::Token,
 };
 
 // impl std::fmt::Display
@@ -357,6 +356,30 @@ impl fmt::Display for IfExpression {
     }
 }
 
+struct FunctionLiteral {
+    parameters: Vec<Identifier>,
+    body: BlockStatement,
+}
+
+impl Node for FunctionLiteral {
+    fn token_literal(&self) -> String {
+        "fn".to_string()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Expression for FunctionLiteral {}
+
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
+        write!(f, "fn({}) {}", params.join(", "), self.body)
+    }
+}
+
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
@@ -442,9 +465,9 @@ impl<'a> Parser<'a> {
     fn parse_expression_statement(&mut self) -> Result<Box<dyn Statement>, ParseError> {
         let expression = self.parse_expression(Precedence::Lowest)?;
         // reads the `;` token
-        let Token::Semicolon = self.next()? else {
+        if Token::Semicolon != self.next()? {
             return Err(ParseError::UnexpectedToken);
-        };
+        }
         Ok(Box::new(ExpressionStatement(expression)))
     }
 
@@ -474,6 +497,15 @@ impl<'a> Parser<'a> {
             Token::True => Ok(Box::new(Bool(true))),
             Token::False => Ok(Box::new(Bool(false))),
             Token::Str(s) => Ok(Box::new(StringLiteral(s))),
+            Token::Function => {
+                if Token::LParen != self.next()? {
+                    return Err(ParseError::UnexpectedToken);
+                }
+                let parameters = self.parse_function_parameters()?;
+                let body = self.parse_block_statement()?;
+                let f = FunctionLiteral { parameters, body };
+                Ok(Box::new(f))
+            }
             operator @ (Token::Sub | Token::Not | Token::Increment | Token::Decrement) => {
                 let right = self.parse_expression(Precedence::Prefix)?;
                 Ok(Box::new(Prefix { operator, right }))
@@ -510,14 +542,12 @@ impl<'a> Parser<'a> {
         }
         let mut statements = Vec::new();
         while let Some(token) = self.peek() {
-            if *token == Token::RBrace {
-                break;
-            }
-            match self.parse_statement() {
-                Ok(statement) => statements.push(statement),
-                Err(err) => {
-                    return Err(err);
-                }
+            match token {
+                Token::RBrace => break,
+                _ => match self.parse_statement() {
+                    Ok(statement) => statements.push(statement),
+                    Err(err) => return Err(err),
+                },
             }
         }
         // reads the `}` token
@@ -547,6 +577,29 @@ impl<'a> Parser<'a> {
     ) -> Result<Box<dyn Expression>, ParseError> {
         let operator = self.next()?;
         Ok(Box::new(Postfix { left, operator }))
+    }
+
+    fn parse_function_parameters(&mut self) -> Result<Vec<Identifier>, ParseError> {
+        let mut parameters = Vec::new();
+
+        while let Some(token) = self.peek() {
+            match token {
+                Token::Ident(ident) => {
+                    parameters.push(Identifier(ident.clone()));
+                    self.next()?;
+                }
+                Token::RParen => {
+                    self.next()?;
+                    break;
+                }
+                Token::Comma => {
+                    self.next()?;
+                }
+                _ => return Err(ParseError::UnexpectedToken),
+            }
+        }
+
+        Ok(parameters)
     }
 }
 
@@ -639,5 +692,26 @@ mod tests {
         assert!(right.is_some());
         let right = right.unwrap();
         assert_eq!(right.0, "x");
+    }
+
+    #[test]
+    fn test_function_literal() {
+        let input = "fn(x, y) { x + y; };";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let function = statement.0.as_any().downcast_ref::<FunctionLiteral>();
+        assert!(function.is_some());
+        let function = function.unwrap();
+        assert_eq!(function.parameters.len(), 2);
+        assert_eq!(function.parameters[0].0, "x");
+        assert_eq!(function.parameters[1].0, "y");
     }
 }
