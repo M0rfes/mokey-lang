@@ -474,8 +474,7 @@ impl<'a> Parser<'a> {
             Token::True => Ok(Box::new(Bool(true))),
             Token::False => Ok(Box::new(Bool(false))),
             Token::Str(s) => Ok(Box::new(StringLiteral(s))),
-            Token::Sub | Token::Not | Token::Increment | Token::Decrement => {
-                let operator = self.next()?;
+            operator @ (Token::Sub | Token::Not | Token::Increment | Token::Decrement) => {
                 let right = self.parse_expression(Precedence::Prefix)?;
                 Ok(Box::new(Prefix { operator, right }))
             }
@@ -617,5 +616,28 @@ mod tests {
         let statement = statement.unwrap();
         let infix = statement.0.as_any().downcast_ref::<Infix>();
         assert!(infix.is_some());
+    }
+
+    #[test]
+    fn test_prefix_expression() {
+        let input = "!x;";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let prefix = statement.0.as_any().downcast_ref::<Prefix>();
+        assert!(prefix.is_some());
+        let prefix = prefix.unwrap();
+        assert_eq!(prefix.operator, Token::Not);
+        let right = prefix.right.as_any().downcast_ref::<Identifier>();
+        assert!(right.is_some());
+        let right = right.unwrap();
+        assert_eq!(right.0, "x");
     }
 }
