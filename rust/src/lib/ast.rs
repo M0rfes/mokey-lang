@@ -371,6 +371,30 @@ impl Node for FunctionLiteral {
     }
 }
 
+struct  CallExpression {
+    function: Box<dyn Expression>,
+    arguments: Vec<Box<dyn Expression>>,
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        "call".to_string()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Expression for CallExpression {}
+
+impl fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let args: Vec<String> = self.arguments.iter().map(|a| a.to_string()).collect();
+        write!(f, "{}({})", self.function, args.join(", "))
+    }
+}
+
 impl Expression for FunctionLiteral {}
 
 impl fmt::Display for FunctionLiteral {
@@ -562,6 +586,9 @@ impl<'a> Parser<'a> {
         left: Box<dyn Expression>,
     ) -> Result<Box<dyn Expression>, ParseError> {
         let operator = self.next()?;
+        if Token::LParen == operator {
+            return self.parse_call_expression(left);
+        }
         let precedence = operator.precedence();
         let right = self.parse_expression(precedence)?;
         Ok(Box::new(Infix {
@@ -600,6 +627,36 @@ impl<'a> Parser<'a> {
         }
 
         Ok(parameters)
+    }
+
+    fn parse_call_expression(
+        &mut self,
+        function: Box<dyn Expression>,
+    ) -> Result<Box<dyn Expression>, ParseError> {
+        let arguments = self.parse_call_arguments()?;
+        Ok(Box::new(CallExpression { function, arguments }))
+    }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Box<dyn Expression>>, ParseError> {
+        let mut arguments = Vec::new();
+
+        while let Some(token) = self.peek() {
+            match token {
+                Token::RParen => {
+                    self.next()?;
+                    break;
+                }
+                _ => {
+                    let argument = self.parse_expression(Precedence::Lowest)?;
+                    arguments.push(argument);
+                    if let Some(Token::Comma) = self.peek() {
+                        self.next()?;
+                    }
+                }
+            }
+        }
+
+        Ok(arguments)
     }
 }
 
@@ -713,5 +770,28 @@ mod tests {
         assert_eq!(function.parameters.len(), 2);
         assert_eq!(function.parameters[0].0, "x");
         assert_eq!(function.parameters[1].0, "y");
+    }
+
+    #[test]
+    fn test_call_expression() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let call = statement.0.as_any().downcast_ref::<CallExpression>();
+        assert!(call.is_some());
+        let call = call.unwrap();
+        assert_eq!(call.arguments.len(), 3);
+        let fun = call.function.as_any().downcast_ref::<Identifier>();
+        assert!(fun.is_some());
+        let fun = fun.unwrap();
+        assert_eq!(fun.0, "add");
     }
 }
