@@ -12,11 +12,12 @@ fn main() {
         let lexer = Lexer::new(&input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        for error in program.errors {
+        for error in &program.errors {
             eprintln!("{:?}", error);
         }
-        for statement in program.statements {
-            println!("{}", statement);
+        let obj = lib::evaluator::eval_program(program);
+        if let Some(obj) = obj {
+            println!("{}", obj);
         }
     }
 }

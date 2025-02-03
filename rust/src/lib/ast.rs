@@ -1,4 +1,4 @@
-use std::{any::Any, f32::consts::E, fmt, iter::Peekable};
+use std::{any::Any, fmt, iter::Peekable};
 
 use crate::{
     lexer::{Lexer, LexerError},
@@ -125,7 +125,7 @@ impl fmt::Display for ReturnStatement {
     }
 }
 
-struct ExpressionStatement(Box<dyn Expression>);
+pub struct ExpressionStatement(pub Box<dyn Expression>);
 
 impl Node for ExpressionStatement {
     fn token_literal(&self) -> String {
@@ -220,7 +220,7 @@ impl fmt::Display for Infix {
     }
 }
 
-struct Int(i64);
+pub struct Int(pub i64);
 
 impl Node for Int {
     fn token_literal(&self) -> String {
@@ -260,7 +260,7 @@ impl fmt::Display for Float {
 
 impl Expression for Float {}
 
-struct Bool(bool);
+pub struct Bool(pub bool);
 
 impl Node for Bool {
     fn token_literal(&self) -> String {
