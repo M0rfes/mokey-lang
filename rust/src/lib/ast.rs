@@ -684,7 +684,8 @@ impl Token {
             | Token::BitwiseAnd
             | Token::BitwiseOr
             | Token::BitwiseXor
-            | Token::Mod => Precedence::Sum,
+            | Token::Mod
+            | Token::Assign => Precedence::Sum,
             Token::Mul | Token::Div | Token::Power => Precedence::Product,
             Token::LParen => Precedence::Call,
             Token::Increment | Token::Decrement => Precedence::Postfix,
@@ -810,5 +811,28 @@ mod tests {
         assert!(fun.is_some());
         let fun = fun.unwrap();
         assert_eq!(fun.0, "add");
+    }
+
+    #[test]
+    fn test_assignment() {
+        let input = "x = 5;";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let infix = statement.0.as_any().downcast_ref::<Infix>();
+        assert!(infix.is_some());
+        let infix = infix.unwrap();
+        assert_eq!(infix.operator, Token::Assign);
+        let left = infix.left.as_any().downcast_ref::<Identifier>();
+        assert!(left.is_some());
+        let left = left.unwrap();
+        assert_eq!(left.0, "x");
     }
 }
