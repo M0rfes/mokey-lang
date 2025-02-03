@@ -20,6 +20,7 @@ pub enum Token {
     Mul,   // *
     Div,   // /
     Power, // **
+    Mod,  // %
 
     /// Unary operators
     Not, // !

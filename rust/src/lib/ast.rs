@@ -145,9 +145,9 @@ impl fmt::Display for ExpressionStatement {
     }
 }
 
-struct Prefix {
-    operator: Token,
-    right: Box<dyn Expression>,
+pub struct Prefix {
+    pub operator: Token,
+    pub right: Box<dyn Expression>,
 }
 
 impl Node for Prefix {
@@ -191,10 +191,10 @@ impl fmt::Display for Postfix {
     }
 }
 
-struct Infix {
-    left: Box<dyn Expression>,
-    operator: Token,
-    right: Box<dyn Expression>,
+pub struct Infix {
+    pub left: Box<dyn Expression>,
+    pub operator: Token,
+    pub right: Box<dyn Expression>,
 }
 
 impl Node for Infix {
@@ -240,7 +240,7 @@ impl fmt::Display for Int {
     }
 }
 
-struct Float(f64);
+pub struct Float(pub f64);
 
 impl Node for Float {
     fn token_literal(&self) -> String {
@@ -279,7 +279,7 @@ impl fmt::Display for Bool {
         write!(f, "{}", self.0)
     }
 }
-struct StringLiteral(String);
+pub struct StringLiteral(pub String);
 
 impl Node for StringLiteral {
     fn token_literal(&self) -> String {
@@ -371,7 +371,7 @@ impl Node for FunctionLiteral {
     }
 }
 
-struct  CallExpression {
+struct CallExpression {
     function: Box<dyn Expression>,
     arguments: Vec<Box<dyn Expression>>,
 }
@@ -530,7 +530,11 @@ impl<'a> Parser<'a> {
                 let f = FunctionLiteral { parameters, body };
                 Ok(Box::new(f))
             }
-            operator @ (Token::Sub | Token::Not | Token::Increment | Token::Decrement) => {
+            operator @ (Token::Sub
+            | Token::Not
+            | Token::Increment
+            | Token::Decrement
+            | Token::BitwiseNot) => {
                 let right = self.parse_expression(Precedence::Prefix)?;
                 Ok(Box::new(Prefix { operator, right }))
             }
@@ -634,7 +638,10 @@ impl<'a> Parser<'a> {
         function: Box<dyn Expression>,
     ) -> Result<Box<dyn Expression>, ParseError> {
         let arguments = self.parse_call_arguments()?;
-        Ok(Box::new(CallExpression { function, arguments }))
+        Ok(Box::new(CallExpression {
+            function,
+            arguments,
+        }))
     }
 
     fn parse_call_arguments(&mut self) -> Result<Vec<Box<dyn Expression>>, ParseError> {
@@ -667,7 +674,17 @@ impl Token {
             Token::Less | Token::LessEq | Token::Greater | Token::GreaterEq => {
                 Precedence::LessGreater
             }
-            Token::Add | Token::Sub => Precedence::Sum,
+            Token::Add
+            | Token::Sub
+            | Token::LogicalAnd
+            | Token::LogicalOr
+            | Token::LogicalXor
+            | Token::ShiftLeft
+            | Token::ShiftRight
+            | Token::BitwiseAnd
+            | Token::BitwiseOr
+            | Token::BitwiseXor
+            | Token::Mod => Precedence::Sum,
             Token::Mul | Token::Div | Token::Power => Precedence::Product,
             Token::LParen => Precedence::Call,
             Token::Increment | Token::Decrement => Precedence::Postfix,

@@ -157,6 +157,7 @@ impl<'a> Iterator for Lexer<'a> {
             ',' => Ok(Token::Comma),
             '<' => Ok(Token::Less),
             '>' => Ok(Token::Greater),
+            '%' => Ok(Token::Mod),
             '"' => {
                 let mut string = String::new();
                 while let Some(ch) = self.peek() {

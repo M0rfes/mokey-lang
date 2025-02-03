@@ -76,7 +76,7 @@ impl fmt::Display for Null {
 }
 
 pub struct StringLiteral {
-    value: std::string::String,
+    pub value: std::string::String,
 }
 
 impl Object for StringLiteral {
@@ -93,7 +93,7 @@ impl fmt::Display for StringLiteral {
 }
 
 pub struct Float {
-    value: f64,
+  pub  value: f64,
 }
 
 impl fmt::Display for Float {
