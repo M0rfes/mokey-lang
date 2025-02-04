@@ -1,11 +1,11 @@
 use core::fmt;
 
-pub enum Object {
-    StringLiteral(Box<String>),
-    Integer(Box<i128>),
-    Float(Box<f64>),
-    Boolean(Box<bool>),
-    ReturnValue(Box<Object>),
+pub enum Object<'a> {
+    StringLiteral(String),
+    Integer(i128),
+    Float(f64),
+    Boolean(bool),
+    ReturnValue(&'a Object<'a>),
     Null// Null is a singleton, so we use a Box<()>
 }
 
@@ -16,7 +16,7 @@ pub enum Object {
 // }
 
 
-impl fmt::Display for Object {
+impl<'a> fmt::Display for Object<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Object::StringLiteral(s) => write!(f, "{}", s),
