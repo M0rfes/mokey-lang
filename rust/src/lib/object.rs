@@ -19,7 +19,7 @@ pub enum Object<'a> {
 impl<'a> fmt::Display for Object<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Object::StringLiteral(s) => write!(f, "{}", s),
+            Object::StringLiteral(s) => write!(f, "\"{}\"", s),
             Object::Integer(n) => write!(f, "{}", n),
             Object::Float(n) => write!(f, "{}", n),
             Object::Boolean(b) => write!(f, "{}", b),

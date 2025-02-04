@@ -1,6 +1,6 @@
-use crate::ast;
 use crate::object::Object;
 use crate::token::Token;
+use crate::{ast, object};
 
 const TRUE_OBJ: Object = Object::Boolean(true);
 const FALSE_OBJ: Object = Object::Boolean(false);
@@ -40,6 +40,10 @@ fn eval_expression<'a>(expression: &Box<dyn ast::Expression>) -> Object<'a> {
     } else if let Some(prefix) = expression.as_any().downcast_ref::<ast::Prefix>() {
         let right = eval_expression(&prefix.right);
         return eval_prefix_expression(&prefix.operator, right);
+    } else if let Some(infix) = expression.as_any().downcast_ref::<ast::Infix>() {
+        let left = eval_expression(&infix.left);
+        let right = eval_expression(&infix.right);
+        return eval_infix_expression(left, &infix.operator, right);
     } else {
         return Object::Null;
     }
@@ -105,7 +109,6 @@ fn eval_bitwise_operator_expression(right: Object) -> Object {
         Object::Float(n) => Object::Integer(!(n as i128)),
         Object::Boolean(b) => Object::Boolean(!b),
         _ => NULL_OBJ,
-        
     }
 }
 
@@ -124,3 +127,332 @@ fn eval_decrement_operator_expression(right: Object) -> Object {
         _ => NULL_OBJ,
     }
 }
+
+fn eval_infix_expression<'a>(left: Object<'a>, operator: &Token, right: Object<'a>) -> Object<'a> {
+    match operator {
+        Token::Add => eval_plus_infix_expression(left, right),
+        Token::Sub => eval_minus_infix_expression(left, right),
+        Token::Mul => eval_multiply_infix_expression(left, right),
+        Token::Div => eval_divide_infix_expression(left, right),
+        Token::Mod => eval_modulo_infix_expression(left, right),
+        Token::BitwiseAnd => eval_bitwise_and_infix_expression(left, right),
+        Token::BitwiseOr => eval_bitwise_or_infix_expression(left, right),
+        Token::BitwiseXor => eval_bitwise_xor_infix_expression(left, right),
+        Token::ShiftLeft => eval_bitwise_left_shift_infix_expression(left, right),
+        Token::ShiftRight => eval_bitwise_right_shift_infix_expression(left, right),
+        Token::Equal => eval_equal_infix_expression(left, right),
+        Token::NotEqual => eval_not_equal_infix_expression(left, right),
+        Token::Less => eval_less_infix_expression(left, right),
+        Token::LessEq => eval_less_eq_infix_expression(left, right),
+        Token::Greater => eval_greater_infix_expression(left, right),
+        Token::GreaterEq => eval_greater_eq_infix_expression(left, right),
+        Token::LogicalAnd => {
+            if is_truthy(left) && is_truthy(right) {
+                return TRUE_OBJ;
+            } else {
+                return FALSE_OBJ;
+            }
+        }
+        Token::LogicalOr => {
+            if is_truthy(left) || is_truthy(right) {
+                return TRUE_OBJ;
+            } else {
+                return FALSE_OBJ;
+            }
+        }
+        Token::LogicalXor => {
+            if is_truthy(left) ^ is_truthy(right) {
+                return TRUE_OBJ;
+            } else {
+                return FALSE_OBJ;
+            }
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn is_truthy(obj: Object) -> bool {
+    match obj {
+        Object::Boolean(b) => b,
+        Object::Integer(n) => n != 0,
+        Object::Float(n) => n != 0.0,
+        Object::StringLiteral(s) => !s.is_empty(),
+        Object::Null => false,
+        _ => true,
+    }
+}
+
+fn eval_plus_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l + r),
+        (Object::Float(l), Object::Float(r)) => Object::Float(l + r),
+        (Object::Integer(l), Object::Float(r)) => Object::Float(l as f64 + r),
+        (Object::Float(l), Object::Integer(r)) => Object::Float(l + r as f64),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::StringLiteral(l + &r),
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_minus_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l - r),
+        (Object::Float(l), Object::Float(r)) => Object::Float(l - r),
+        (Object::Integer(l), Object::Float(r)) => Object::Float(l as f64 - r),
+        (Object::Float(l), Object::Integer(r)) => Object::Float(l - r as f64),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(l.replace(&r, ""))
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_multiply_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l * r),
+        (Object::Float(l), Object::Float(r)) => Object::Float(l * r),
+        (Object::Integer(l), Object::Float(r)) => Object::Float(l as f64 * r),
+        (Object::Float(l), Object::Integer(r)) => Object::Float(l * r as f64),
+        (Object::StringLiteral(l), Object::Integer(r)) => {
+            Object::StringLiteral(l.repeat(r as usize))
+        }
+        (Object::StringLiteral(l), Object::Float(r)) => {
+            Object::StringLiteral(l.repeat(r as usize as usize))
+        }
+        (Object::Integer(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(r.repeat(l as usize))
+        }
+        (Object::Float(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(r.repeat(l as usize as usize))
+        }
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => {
+            let zip: String = l
+                .chars()
+                .zip(r.chars())
+                .map(|(a, b)| a.to_string() + &b.to_string())
+                .collect();
+            Object::StringLiteral(zip)
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_divide_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l / r),
+        (Object::Float(l), Object::Float(r)) => Object::Float(l / r),
+        (Object::Integer(l), Object::Float(r)) => Object::Float(l as f64 / r),
+        (Object::Float(l), Object::Integer(r)) => Object::Float(l / r as f64),
+        (Object::StringLiteral(l), Object::Integer(r)) => {
+            let cut_off = if l.len() > r as usize {
+                l.len() - r as usize
+            } else {
+                0
+            };
+            Object::StringLiteral(l[..cut_off as usize].to_string())
+        }
+        (Object::StringLiteral(l), Object::Float(r)) => {
+            let cut_off = if l.len() > r as usize as usize {
+                l.len() - r as usize as usize
+            } else {
+                0
+            };
+            Object::StringLiteral(l[..cut_off].to_string())
+        }
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(l.chars().filter(|c| !r.contains(*c)).collect())
+        }
+        (Object::Integer(l), Object::StringLiteral(r)) => {
+            let start = if l as usize > r.len() {
+                r.len()
+            } else {
+                l as usize
+            };
+            Object::StringLiteral(r[start..].to_string())
+        }
+
+        (Object::Float(l), Object::StringLiteral(r)) => {
+            let start = if l as usize > r.len() {
+                r.len()
+            } else {
+                l as usize
+            };
+            Object::StringLiteral(r[start..].to_string())
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_modulo_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l % r),
+        (Object::Float(l), Object::Float(r)) => Object::Float(l % r),
+        (Object::Integer(l), Object::Float(r)) => Object::Float(l as f64 % r),
+        (Object::Float(l), Object::Integer(r)) => Object::Float(l % r as f64),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Integer(
+            l.chars()
+                .filter(|c| !r.contains(*c))
+                .collect::<String>()
+                .len() as i128,
+        ),
+        (Object::StringLiteral(l), Object::Integer(r)) => {
+            Object::StringLiteral(l.chars().rev().cycle().take(r as usize).collect())
+        }
+        (Object::StringLiteral(l), Object::Float(r)) => {
+            Object::StringLiteral(l.chars().rev().cycle().take(r as usize as usize).collect())
+        }
+        (Object::Integer(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(r.chars().cycle().take(l as usize).collect())
+        }
+        (Object::Float(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(r.chars().cycle().take(l as usize as usize).collect())
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_bitwise_and_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l & r),
+        (Object::Float(l), Object::Float(r)) => Object::Integer(l as i128 & r as i128),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l & r),
+        (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l & r as i128),
+        (Object::Boolean(l), Object::Integer(r)) => Object::Integer(l as i128 & r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => {
+            Object::StringLiteral(l.chars().filter(|c| r.contains(*c)).collect())
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_bitwise_or_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l | r),
+        (Object::Float(l), Object::Float(r)) => Object::Integer(l as i128 | r as i128),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l | r),
+        (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l | r as i128),
+        (Object::Boolean(l), Object::Integer(r)) => Object::Integer(l as i128 | r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => {
+            let set = l.chars().chain(r.chars()).collect::<std::collections::HashSet<char>>();
+            Object::StringLiteral(set.into_iter().collect())
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_bitwise_xor_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l ^ r),
+        (Object::Float(l), Object::Float(r)) => Object::Integer(l as i128 ^ r as i128),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l ^ r),
+        (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l ^ r as i128),
+        (Object::Boolean(l), Object::Integer(r)) => Object::Integer(l as i128 ^ r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => {
+            let intersection = l
+                .chars()
+                .filter(|c| r.contains(*c))
+                .collect::<std::collections::HashSet<char>>();
+            Object::StringLiteral(
+                l.chars()
+                    .chain(r.chars())
+                    .filter(|c| !intersection.contains(c))
+                    .collect(),
+            )
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_bitwise_left_shift_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l << r),
+        (Object::Float(l), Object::Float(r)) => Object::Integer((l as i128) << (r as i128)),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(((l as i128) << (r as i128)) as i128 != 0),
+        (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l << r as i128),
+        (Object::Boolean(l), Object::Integer(r)) => Object::Integer((l as i128) << r),
+        (Object::StringLiteral(l), Object::Integer(r)) => {
+            Object::StringLiteral(l.to_string() + &" ".repeat(r as usize))
+        }
+        (Object::StringLiteral(l), Object::Float(r)) => {
+            Object::StringLiteral(l.to_string() + &" ".repeat(r as usize as usize))
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_bitwise_right_shift_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l >> r),
+        (Object::Float(l), Object::Float(r)) => Object::Integer((l as i128) >> (r as i128)),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(((l as i128) >> (r as i128)) as i128 != 0),
+        (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l >> r as i128),
+        (Object::Boolean(l), Object::Integer(r)) => Object::Integer((l as i128) >> r),
+        (Object::StringLiteral(l), Object::Integer(r)) => {
+            Object::StringLiteral(" ".repeat(r as usize) + &l)
+        }
+        (Object::StringLiteral(l), Object::Float(r)) => {
+            Object::StringLiteral(" ".repeat(r as usize as usize) + &l)
+        }
+        _ => NULL_OBJ,
+    }
+}
+
+fn eval_equal_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l == r),
+        (Object::Float(l), Object::Float(r)) => Object::Boolean(l == r),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l == r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l == r),
+        _ => Object::Boolean(false),
+    }
+}
+
+fn eval_not_equal_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l != r),
+        (Object::Float(l), Object::Float(r)) => Object::Boolean(l != r),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l != r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l != r),
+        _ => Object::Boolean(true),
+    }
+}
+
+fn eval_less_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l < r),
+        (Object::Float(l), Object::Float(r)) => Object::Boolean(l < r),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l < r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l < r),
+        _ => Object::Boolean(false),
+    }
+}
+
+fn eval_less_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l <= r),
+        (Object::Float(l), Object::Float(r)) => Object::Boolean(l <= r),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l <= r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l <= r),
+        _ => Object::Boolean(false),
+    }
+}
+
+fn eval_greater_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l > r),
+        (Object::Float(l), Object::Float(r)) => Object::Boolean(l > r),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l > r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l > r),
+        _ => Object::Boolean(false),
+    }
+}
+
+fn eval_greater_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l >= r),
+        (Object::Float(l), Object::Float(r)) => Object::Boolean(l >= r),
+        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l >= r),
+        (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l >= r),
+        _ => Object::Boolean(false),
+    }
+}
+
