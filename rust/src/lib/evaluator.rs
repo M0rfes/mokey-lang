@@ -1,6 +1,8 @@
+
 use crate::object::Object;
 use crate::token::Token;
-use crate::{ast, object};
+use crate::ast;
+
 
 const TRUE_OBJ: Object = Object::Boolean(true);
 const FALSE_OBJ: Object = Object::Boolean(false);
@@ -128,7 +130,7 @@ fn eval_increment_operator_expression(right: Object) -> Object {
                         'a'
                     } else if c == 'Z' {
                         'A'
-                    } else  {
+                    } else {
                         (c as u8 + 1) as char // Increment ASCII value and convert back to char
                     }
                 })
@@ -152,7 +154,7 @@ fn eval_decrement_operator_expression(right: Object) -> Object {
                         'z'
                     } else if c == 'A' {
                         'Z'
-                    } else  {
+                    } else {
                         (c as u8 - 1) as char // Increment ASCII value and convert back to char
                     }
                 })
@@ -168,6 +170,7 @@ fn eval_infix_expression<'a>(left: Object<'a>, operator: &Token, right: Object<'
         Token::Add => eval_plus_infix_expression(left, right),
         Token::Sub => eval_minus_infix_expression(left, right),
         Token::Mul => eval_multiply_infix_expression(left, right),
+        Token::Power => eval_power_infix_expression(left, right),
         Token::Div => eval_divide_infix_expression(left, right),
         Token::Mod => eval_modulo_infix_expression(left, right),
         Token::BitwiseAnd => eval_bitwise_and_infix_expression(left, right),
@@ -508,3 +511,15 @@ fn eval_postfix_expression<'a>(operator: &Token, right: Object<'a>) -> Object<'a
         _ => NULL_OBJ,
     }
 }
+
+fn eval_power_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => Object::Integer(l.pow(r as u32)),
+        (Object::Float(l), Object::Float(r)) => Object::Float(l.powf(r)),
+        (Object::Integer(l), Object::Float(r)) => Object::Float((l as f64).powf(r)),
+        (Object::Float(l), Object::Integer(r)) => Object::Float(l.powf(r as f64)),
+        _ => NULL_OBJ,
+    }
+}
+
+
