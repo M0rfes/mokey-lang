@@ -77,7 +77,7 @@ impl<'a> Lexer<'a> {
                 .map_err(|_| LexerError::InvalidNumber(number))
         } else {
             number
-                .parse::<i64>()
+                .parse::<i128>()
                 .map(Token::Int)
                 .map_err(|_| LexerError::InvalidNumber(number))
         }

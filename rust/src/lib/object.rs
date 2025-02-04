@@ -1,110 +1,30 @@
 use core::fmt;
 
-pub enum ObjectType {
-    StringLiteral(String),
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    Null,
+pub enum Object {
+    StringLiteral(Box<String>),
+    Integer(Box<i128>),
+    Float(Box<f64>),
+    Boolean(Box<bool>),
+    ReturnValue(Box<Object>),
+    Null// Null is a singleton, so we use a Box<()>
 }
 
-pub trait Object: fmt::Display {
-    fn object_type(&self) -> ObjectType;
-}
+// Object trait is no longer needed
+// pub trait Object: Any + fmt::Display + Default {
+//     fn object_type(&self) -> ObjectType;
+//     fn as_any(&self) -> &dyn Any;
+// }
 
-impl fmt::Display for ObjectType {
+
+impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ObjectType::StringLiteral(s) => write!(f, "{}", s),
-            ObjectType::Float(n) => write!(f, "{}", n),
-            ObjectType::Int(n) => write!(f, "{}", n),
-            ObjectType::Bool(b) => write!(f, "{}", b),
-            ObjectType::Null => write!(f, "null"),
+            Object::StringLiteral(s) => write!(f, "{}", s),
+            Object::Integer(n) => write!(f, "{}", n),
+            Object::Float(n) => write!(f, "{}", n),
+            Object::Boolean(b) => write!(f, "{}", b),
+            Object::Null => write!(f, "null"),
+            Object::ReturnValue(obj) => write!(f, "{}", obj),
         }
-    }
-}
-
-pub struct Integer {
-    pub value: i64,
-}
-
-impl Object for Integer {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Int(self.value)
-    }
-}
-
-impl fmt::Display for Integer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-    
-}
-
-
-
-pub struct Boolean {
-    pub value: bool,
-}
-
-impl fmt::Display for Boolean {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-    
-}
-
-impl Object for Boolean {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Bool(self.value)
-    }
-}
-
-pub struct Null;
-
-impl Object for Null {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Null
-    }
-}
-
-impl fmt::Display for Null {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "null")
-    }
-    
-}
-
-pub struct StringLiteral {
-    pub value: std::string::String,
-}
-
-impl Object for StringLiteral {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::StringLiteral(self.value.clone())
-    }
-}
-
-impl fmt::Display for StringLiteral {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-    
-}
-
-pub struct Float {
-  pub  value: f64,
-}
-
-impl fmt::Display for Float {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-    
-}
-
-impl Object for Float {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Float(self.value)
     }
 }

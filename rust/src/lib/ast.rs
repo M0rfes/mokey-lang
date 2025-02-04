@@ -220,7 +220,7 @@ impl fmt::Display for Infix {
     }
 }
 
-pub struct Int(pub i64);
+pub struct Int(pub i128);
 
 impl Node for Int {
     fn token_literal(&self) -> String {

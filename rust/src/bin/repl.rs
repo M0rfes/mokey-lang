@@ -15,9 +15,10 @@ fn main() {
         for error in &program.errors {
             eprintln!("{:?}", error);
         }
-        let obj = lib::evaluator::eval_program(program);
-        if let Some(obj) = obj {
-            println!("{}", obj);
+        if program.errors.len() > 0 {
+            return;
         }
+        let obj = lib::evaluator::eval_program(program);
+        println!("{}", obj);
     }
 }

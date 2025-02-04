@@ -5,7 +5,7 @@ pub enum Token {
     #[allow(missing_docs)]
     Ident(String),
     #[allow(missing_docs)]
-    Int(i64),
+    Int(i128),
     #[allow(missing_docs)]
     Float(f64),
     #[allow(missing_docs)]
