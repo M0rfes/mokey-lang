@@ -168,9 +168,9 @@ impl fmt::Display for Prefix {
     }
 }
 
-struct Postfix {
-    left: Box<dyn Expression>,
-    operator: Token,
+pub struct Postfix {
+    pub left: Box<dyn Expression>,
+    pub operator: Token,
 }
 
 impl Node for Postfix {

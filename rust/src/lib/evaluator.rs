@@ -44,6 +44,9 @@ fn eval_expression<'a>(expression: &Box<dyn ast::Expression>) -> Object<'a> {
         let left = eval_expression(&infix.left);
         let right = eval_expression(&infix.right);
         return eval_infix_expression(left, &infix.operator, right);
+    } else if let Some(postfix) = expression.as_any().downcast_ref::<ast::Postfix>() {
+        let right = eval_expression(&postfix.left);
+        return eval_postfix_expression(&postfix.operator, right);
     } else {
         return Object::Null;
     }
@@ -116,6 +119,23 @@ fn eval_increment_operator_expression(right: Object) -> Object {
     match right {
         Object::Integer(n) => Object::Integer(n + 1),
         Object::Float(n) => Object::Float(n + 1.0),
+        Object::StringLiteral(s) => {
+            let new_s = s
+                .chars()
+                .map(|c| {
+                    if c == 'z' {
+                        // Handle 'z' specially to wrap around to 'a'
+                        'a'
+                    } else if c == 'Z' {
+                        'A'
+                    } else  {
+                        // Only shift alphabetic characters
+                        (c as u8 + 1) as char // Increment ASCII value and convert back to char
+                    }
+                })
+                .collect();
+            Object::StringLiteral(new_s)
+        }
         _ => NULL_OBJ,
     }
 }
@@ -124,6 +144,23 @@ fn eval_decrement_operator_expression(right: Object) -> Object {
     match right {
         Object::Integer(n) => Object::Integer(n - 1),
         Object::Float(n) => Object::Float(n - 1.0),
+        Object::StringLiteral(s) => {
+            let new_s = s
+                .chars()
+                .map(|c| {
+                    if c == 'a' {
+                        // Handle 'z' specially to wrap around to 'a'
+                        'z'
+                    } else if c == 'A' {
+                        'Z'
+                    } else  {
+                        // Only shift alphabetic characters
+                        (c as u8 - 1) as char // Increment ASCII value and convert back to char
+                    }
+                })
+                .collect();
+            Object::StringLiteral(new_s)
+        }
         _ => NULL_OBJ,
     }
 }
@@ -332,7 +369,10 @@ fn eval_bitwise_or_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> 
         (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l | r as i128),
         (Object::Boolean(l), Object::Integer(r)) => Object::Integer(l as i128 | r),
         (Object::StringLiteral(l), Object::StringLiteral(r)) => {
-            let set = l.chars().chain(r.chars()).collect::<std::collections::HashSet<char>>();
+            let set = l
+                .chars()
+                .chain(r.chars())
+                .collect::<std::collections::HashSet<char>>();
             Object::StringLiteral(set.into_iter().collect())
         }
         _ => NULL_OBJ,
@@ -366,7 +406,9 @@ fn eval_bitwise_left_shift_infix_expression<'a>(left: Object<'a>, right: Object<
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l << r),
         (Object::Float(l), Object::Float(r)) => Object::Integer((l as i128) << (r as i128)),
-        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(((l as i128) << (r as i128)) as i128 != 0),
+        (Object::Boolean(l), Object::Boolean(r)) => {
+            Object::Boolean(((l as i128) << (r as i128)) as i128 != 0)
+        }
         (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l << r as i128),
         (Object::Boolean(l), Object::Integer(r)) => Object::Integer((l as i128) << r),
         (Object::StringLiteral(l), Object::Integer(r)) => {
@@ -379,11 +421,16 @@ fn eval_bitwise_left_shift_infix_expression<'a>(left: Object<'a>, right: Object<
     }
 }
 
-fn eval_bitwise_right_shift_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_bitwise_right_shift_infix_expression<'a>(
+    left: Object<'a>,
+    right: Object<'a>,
+) -> Object<'a> {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l >> r),
         (Object::Float(l), Object::Float(r)) => Object::Integer((l as i128) >> (r as i128)),
-        (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(((l as i128) >> (r as i128)) as i128 != 0),
+        (Object::Boolean(l), Object::Boolean(r)) => {
+            Object::Boolean(((l as i128) >> (r as i128)) as i128 != 0)
+        }
         (Object::Integer(l), Object::Boolean(r)) => Object::Integer(l >> r as i128),
         (Object::Boolean(l), Object::Integer(r)) => Object::Integer((l as i128) >> r),
         (Object::StringLiteral(l), Object::Integer(r)) => {
@@ -456,3 +503,10 @@ fn eval_greater_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> 
     }
 }
 
+fn eval_postfix_expression<'a>(operator: &Token, right: Object<'a>) -> Object<'a> {
+    match operator {
+        Token::Increment => eval_increment_operator_expression(right),
+        Token::Decrement => eval_decrement_operator_expression(right),
+        _ => NULL_OBJ,
+    }
+}
