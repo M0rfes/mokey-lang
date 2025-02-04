@@ -129,7 +129,6 @@ fn eval_increment_operator_expression(right: Object) -> Object {
                     } else if c == 'Z' {
                         'A'
                     } else  {
-                        // Only shift alphabetic characters
                         (c as u8 + 1) as char // Increment ASCII value and convert back to char
                     }
                 })
@@ -154,7 +153,6 @@ fn eval_decrement_operator_expression(right: Object) -> Object {
                     } else if c == 'A' {
                         'Z'
                     } else  {
-                        // Only shift alphabetic characters
                         (c as u8 - 1) as char // Increment ASCII value and convert back to char
                     }
                 })
