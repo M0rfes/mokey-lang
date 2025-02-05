@@ -55,7 +55,7 @@ impl fmt::Display for Function {
 
 pub struct Environment {
     store: HashMap<String, Object>,
-    outer: Option<Box<Environment>>,
+    outer: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
@@ -66,10 +66,10 @@ impl Environment {
         }
     }
 
-    pub fn new_enclosed(outer: Environment) -> Self {
+    pub fn new_enclosed(outer: Rc<RefCell<Environment>>) -> Self {
         Environment {
             store: HashMap::new(),
-            outer: Some(Box::new(outer)),
+            outer: Some(outer),
         }
     }
 
@@ -77,7 +77,7 @@ impl Environment {
         match self.store.get(name) {
             Some(obj) => Some(obj.clone()),
             None => match &self.outer {
-                Some(outer) => outer.get(name),
+                Some(outer) => outer.borrow().get(name),
                 None => None,
             },
         }

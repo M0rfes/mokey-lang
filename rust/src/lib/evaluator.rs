@@ -95,10 +95,43 @@ fn eval_expression(
             env: env.clone(),
         };
         return Object::Function(Rc::new(function_object));
+    } else if let Some(call_expression) = expression.as_any().downcast_ref::<ast::CallExpression>()
+    {
+        let function = eval_expression(&call_expression.function, env.clone());
+        let args = call_expression
+            .arguments
+            .iter()
+            .map(|arg| eval_expression(arg, env.clone()))
+            .collect();
+        return apply_function(function, args);
     } else {
         return Object::Null;
     }
 }
+
+fn apply_function(function: Object, args: Vec<Object>) -> Object {
+    if let Object::Function(function_object) = function {
+        let mut extended_env = object::Environment::new_enclosed(function_object.env.clone());
+        for (param, arg) in function_object.function_literal.parameters.iter().zip(args) {
+            extended_env.set(param.0.clone(), arg);
+        }
+        let evaluated = eval_block_statement(
+            &function_object.function_literal.body,
+            Rc::new(RefCell::new(extended_env)),
+        );
+        return unwrap_return_value(evaluated);
+    }
+    Object::Error(vec![format!("not something that can be called: {}", function)])
+}
+
+fn unwrap_return_value(obj: Object) -> Object {
+    if let Object::ReturnValue(value) = obj {
+        *value
+    } else {
+        obj
+    }
+}
+
 
 fn eval_prefix_expression(operator: &Token, right: Object) -> Object {
     match operator {

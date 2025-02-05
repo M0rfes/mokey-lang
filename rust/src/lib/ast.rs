@@ -1,4 +1,4 @@
-use std::{any::Any, fmt, iter::Peekable, rc::Rc,};
+use std::{any::Any, fmt, iter::Peekable, rc::Rc};
 
 use crate::{
     lexer::{Lexer, LexerError},
@@ -84,8 +84,8 @@ impl fmt::Display for Identifier {
 }
 
 pub struct LetStatement {
-   pub name: Identifier,
-   pub value: Box<dyn Expression>,
+    pub name: Identifier,
+    pub value: Box<dyn Expression>,
 }
 
 impl Node for LetStatement {
@@ -301,7 +301,7 @@ impl fmt::Display for StringLiteral {
 }
 
 pub struct BlockStatement {
-   pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Box<dyn Statement>>,
 }
 
 impl Node for BlockStatement {
@@ -359,8 +359,8 @@ impl fmt::Display for IfExpression {
 
 #[derive(Clone)]
 pub struct FunctionLiteral {
-   pub parameters: Vec<Identifier>,
-   pub body: Rc<BlockStatement>,
+    pub parameters: Vec<Identifier>,
+    pub body: Rc<BlockStatement>,
 }
 
 impl Node for FunctionLiteral {
@@ -378,14 +378,20 @@ impl Expression for FunctionLiteral {}
 impl fmt::Display for FunctionLiteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
-        write!(f, "fn({}) {}", params.join(", "), self.body)
+        write!(
+            f,
+            "fn({})\n{}\n{}\n{}",
+            params.join(", "),
+            '{',
+            self.body,
+            '}'
+        )
     }
 }
 
-
-struct CallExpression {
-    function: Box<dyn Expression>,
-    arguments: Vec<Box<dyn Expression>>,
+pub struct CallExpression {
+    pub function: Box<dyn Expression>,
+    pub arguments: Vec<Box<dyn Expression>>,
 }
 
 impl Node for CallExpression {
@@ -406,7 +412,6 @@ impl fmt::Display for CallExpression {
         write!(f, "{}({})", self.function, args.join(", "))
     }
 }
-
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
@@ -532,7 +537,10 @@ impl<'a> Parser<'a> {
                 }
                 let parameters = self.parse_function_parameters()?;
                 let body = self.parse_block_statement()?;
-                let f = FunctionLiteral { parameters, body: Rc::new(body) };
+                let f = FunctionLiteral {
+                    parameters,
+                    body: Rc::new(body),
+                };
                 Ok(Box::new(f))
             }
             operator @ (Token::Sub
@@ -856,18 +864,13 @@ mod tests {
         let statement = statement.unwrap();
         let block = &statement.statements;
         assert_eq!(block.len(), 2);
-        let let_statement1 = block[0]
-            .as_any()
-            .downcast_ref::<LetStatement>();
+        let let_statement1 = block[0].as_any().downcast_ref::<LetStatement>();
         assert!(let_statement1.is_some());
         let let_statement1 = let_statement1.unwrap();
         assert_eq!(let_statement1.name.0, "x");
-        let let_statement2 = block[1]
-            .as_any()
-            .downcast_ref::<LetStatement>();
+        let let_statement2 = block[1].as_any().downcast_ref::<LetStatement>();
         assert!(let_statement2.is_some());
         let let_statement2 = let_statement2.unwrap();
         assert_eq!(let_statement2.name.0, "y");
     }
-
 }
