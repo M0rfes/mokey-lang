@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::object::Object;
+use crate::object::{Builtins, Object};
 use crate::token::Token;
 use crate::{ast, object};
 
@@ -125,6 +125,32 @@ fn apply_function(function: Object, args: Vec<Object>) -> Object {
             Rc::new(RefCell::new(extended_env)),
         );
         return unwrap_return_value(evaluated);
+    }
+    if let Object::Builtin(built) = function {
+        match built {
+            Builtins::Len => {
+                if args.len() > 1 {
+                    return Object::Error(vec![format!(
+                        "too many arguments provided for {}",
+                        built
+                    )]);
+                }
+                if args.is_empty() {
+                    return Object::Error(vec![format!(
+                        "too few arguments provided for {}",
+                        built
+                    )]);
+                }
+                let arg = &args[0];
+                return match arg {
+                    Object::StringLiteral(s) => Object::Integer(s.len() as i128),
+                    _ => Object::Error(vec![format!(
+                        "argument mismatch object docent have len{}",
+                        built
+                    )]),
+                };
+            }
+        }
     }
     Object::Error(vec![format!(
         "not something that can be called: {}",
@@ -693,9 +719,12 @@ fn eval_let_statement(
 }
 
 fn eval_identifier(node: &ast::Identifier, env: Rc<RefCell<object::Environment>>) -> Object {
-    match env.borrow().get(&node.0) {
-        Some(obj) => obj,
-        None => Object::Error(vec![format!("Identifier not found: {}", node.0)]),
+    match node.try_into() as Result<object::Builtins, ()> {
+        Ok(b) => Object::Builtin(b),
+        Err(_) => match env.borrow().get(&node.0) {
+            Some(obj) => obj,
+            None => Object::Error(vec![format!("Identifier not found: {}", node.0)]),
+        },
     }
 }
 

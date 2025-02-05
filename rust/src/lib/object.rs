@@ -13,6 +13,7 @@ pub enum Object {
     Null, // Null is a singleton, so we use a Box<()>
     Error(Vec<String>),
     Function(Rc<Function>),
+    Builtin(Builtins),
 }
 
 impl fmt::Display for Object {
@@ -32,6 +33,31 @@ impl fmt::Display for Object {
                 write!(f, "{}", s)
             }
             Object::Function(func) => write!(f, "{}", func),
+            Object::Builtin(_) => write!(f, "native code"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum Builtins {
+    Len,
+}
+
+impl TryFrom<&ast::Identifier> for Builtins {
+    type Error = ();
+
+    fn try_from(value: &ast::Identifier) -> Result<Self, Self::Error> {
+        if value.0.as_str() == "len" {
+            return Ok(Builtins::Len);
+        }
+        return Err(());
+    }
+}
+
+impl fmt::Display for Builtins {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Builtins::Len => write!(f, "len"),
         }
     }
 }
