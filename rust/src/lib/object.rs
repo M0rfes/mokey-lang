@@ -15,12 +15,6 @@ pub enum Object {
     Function(Rc<Function>),
 }
 
-// Object trait is no longer needed
-// pub trait Object: Any + fmt::Display + Default {
-//     fn object_type(&self) -> ObjectType;
-//     fn as_any(&self) -> &dyn Any;
-// }
-
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
