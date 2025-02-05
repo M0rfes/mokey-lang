@@ -55,6 +55,9 @@ fn eval_block_statement(
         if let Object::ReturnValue(_) = result {
             return result;
         }
+        if let Object::Error(_) = result {
+            return result;
+        }
     }
     result
 }
@@ -75,6 +78,8 @@ fn eval_expression(
         }
     } else if let Some(string) = expression.as_any().downcast_ref::<ast::StringLiteral>() {
         return Object::StringLiteral(string.0.clone());
+    } else if let Some(if_expression) = expression.as_any().downcast_ref::<ast::IfExpression>() {
+        return eval_if_expression(if_expression, env);
     } else if let Some(prefix) = expression.as_any().downcast_ref::<ast::Prefix>() {
         let right = eval_expression(&prefix.right, env);
         return eval_prefix_expression(&prefix.operator, right);
@@ -121,7 +126,10 @@ fn apply_function(function: Object, args: Vec<Object>) -> Object {
         );
         return unwrap_return_value(evaluated);
     }
-    Object::Error(vec![format!("not something that can be called: {}", function)])
+    Object::Error(vec![format!(
+        "not something that can be called: {}",
+        function
+    )])
 }
 
 fn unwrap_return_value(obj: Object) -> Object {
@@ -131,7 +139,6 @@ fn unwrap_return_value(obj: Object) -> Object {
         obj
     }
 }
-
 
 fn eval_prefix_expression(operator: &Token, right: Object) -> Object {
     match operator {
@@ -689,5 +696,19 @@ fn eval_identifier(node: &ast::Identifier, env: Rc<RefCell<object::Environment>>
     match env.borrow().get(&node.0) {
         Some(obj) => obj,
         None => Object::Error(vec![format!("Identifier not found: {}", node.0)]),
+    }
+}
+
+fn eval_if_expression(
+    if_expression: &ast::IfExpression,
+    env: Rc<RefCell<object::Environment>>,
+) -> Object {
+    let condition = eval_expression(&if_expression.condition, env.clone());
+    if is_truthy(condition) {
+        return eval_block_statement(&if_expression.consequence, env);
+    } else if let Some(else_clause) = &if_expression.alternative {
+        return eval_block_statement(else_clause, env);
+    } else {
+        return NULL_OBJ;
     }
 }

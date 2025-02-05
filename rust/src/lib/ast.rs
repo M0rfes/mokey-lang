@@ -330,9 +330,9 @@ impl fmt::Display for BlockStatement {
 }
 
 pub struct IfExpression {
-    condition: Box<dyn Expression>,
-    consequence: BlockStatement,
-    alternative: Option<BlockStatement>,
+   pub condition: Box<dyn Expression>,
+   pub consequence: BlockStatement,
+   pub alternative: Option<BlockStatement>,
 }
 
 impl Node for IfExpression {
