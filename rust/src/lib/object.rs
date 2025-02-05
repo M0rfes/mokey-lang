@@ -1,12 +1,14 @@
 use core::fmt;
 
+#[derive(Debug, Clone)]
 pub enum Object {
     StringLiteral(String),
     Integer(i128),
     Float(f64),
     Boolean(bool),
     ReturnValue(Box<Object>),
-    Null// Null is a singleton, so we use a Box<()>
+    Null,// Null is a singleton, so we use a Box<()>
+    Error(Vec<String>),
 }
 
 // Object trait is no longer needed
@@ -25,6 +27,13 @@ impl fmt::Display for Object {
             Object::Boolean(b) => write!(f, "{}", b),
             Object::Null => write!(f, "null"),
             Object::ReturnValue(obj) => write!(f, "{}", obj),
+            Object::Error(msgs) => {
+                let mut s = String::new();
+                for msg in msgs {
+                    s.push_str(msg);
+                }
+                write!(f, "{}", s)
+            }
         }
     }
 }

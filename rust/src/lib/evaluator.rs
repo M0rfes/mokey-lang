@@ -1,6 +1,8 @@
-use crate::ast;
+use std::f32::consts::PI;
+
 use crate::object::Object;
 use crate::token::Token;
+use crate::{ast, object};
 
 const TRUE_OBJ: Object = Object::Boolean(true);
 const FALSE_OBJ: Object = Object::Boolean(false);
@@ -114,7 +116,7 @@ fn eval_bang_operator_expression(right: Object) -> Object {
             }
         }
         Object::Null => return TRUE_OBJ,
-        _ => return FALSE_OBJ,
+        _ => return Object::Error(vec![format!("Invalid type for ! operator: {}", right)]),
     }
 }
 
@@ -122,7 +124,7 @@ fn eval_minus_prefix_operator_expression(right: Object) -> Object {
     match right {
         Object::Integer(n) => Object::Integer(-n),
         Object::Float(n) => Object::Float(-n),
-        _ => NULL_OBJ,
+        _ => Object::Error(vec![format!("Invalid type for - operator: {}", right)]),
     }
 }
 
@@ -131,7 +133,7 @@ fn eval_bitwise_operator_expression(right: Object) -> Object {
         Object::Integer(n) => Object::Integer(!n),
         Object::Float(n) => Object::Integer(!(n as i128)),
         Object::Boolean(b) => Object::Boolean(!b),
-        _ => NULL_OBJ,
+        _ => Object::Error(vec![format!("Invalid type for ~ operator: {}", right)]),
     }
 }
 
@@ -155,7 +157,7 @@ fn eval_increment_operator_expression(right: Object) -> Object {
                 .collect();
             Object::StringLiteral(new_s)
         }
-        _ => NULL_OBJ,
+        _ => Object::Error(vec![format!("Invalid type for ++ operator: {}", right)]),
     }
 }
 
@@ -179,7 +181,7 @@ fn eval_decrement_operator_expression(right: Object) -> Object {
                 .collect();
             Object::StringLiteral(new_s)
         }
-        _ => NULL_OBJ,
+        _ => Object::Error(vec![format!("Invalid type for -- operator: {}", right)]),
     }
 }
 
@@ -223,7 +225,10 @@ fn eval_infix_expression(left: Object, operator: &Token, right: Object) -> Objec
                 return FALSE_OBJ;
             }
         }
-        _ => NULL_OBJ,
+        _ => Object::Error(vec![format!(
+            "Invalid infix operator: {} {} {}",
+            left, operator, right
+        )]),
     }
 }
 
@@ -245,7 +250,12 @@ fn eval_plus_infix_expression(left: Object, right: Object) -> Object {
         (Object::Integer(l), Object::Float(r)) => Object::Float(l as f64 + r),
         (Object::Float(l), Object::Integer(r)) => Object::Float(l + r as f64),
         (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::StringLiteral(l + &r),
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Add
+        )]),
     }
 }
 
@@ -258,7 +268,12 @@ fn eval_minus_infix_expression(left: Object, right: Object) -> Object {
         (Object::StringLiteral(l), Object::StringLiteral(r)) => {
             Object::StringLiteral(l.replace(&r, ""))
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Sub
+        )]),
     }
 }
 
@@ -288,7 +303,12 @@ fn eval_multiply_infix_expression(left: Object, right: Object) -> Object {
                 .collect();
             Object::StringLiteral(zip)
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Mul
+        )]),
     }
 }
 
@@ -334,7 +354,12 @@ fn eval_divide_infix_expression(left: Object, right: Object) -> Object {
             };
             Object::StringLiteral(r[start..].to_string())
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Div
+        )]),
     }
 }
 
@@ -362,7 +387,12 @@ fn eval_modulo_infix_expression(left: Object, right: Object) -> Object {
         (Object::Float(l), Object::StringLiteral(r)) => {
             Object::StringLiteral(r.chars().cycle().take(l as usize as usize).collect())
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Mod
+        )]),
     }
 }
 
@@ -376,7 +406,12 @@ fn eval_bitwise_and_infix_expression(left: Object, right: Object) -> Object {
         (Object::StringLiteral(l), Object::StringLiteral(r)) => {
             Object::StringLiteral(l.chars().filter(|c| r.contains(*c)).collect())
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::BitwiseAnd
+        )]),
     }
 }
 
@@ -394,7 +429,12 @@ fn eval_bitwise_or_infix_expression(left: Object, right: Object) -> Object {
                 .collect::<std::collections::HashSet<char>>();
             Object::StringLiteral(set.into_iter().collect())
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::BitwiseOr
+        )]),
     }
 }
 
@@ -417,7 +457,12 @@ fn eval_bitwise_xor_infix_expression(left: Object, right: Object) -> Object {
                     .collect(),
             )
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::BitwiseXor
+        )]),
     }
 }
 
@@ -436,7 +481,12 @@ fn eval_bitwise_left_shift_infix_expression(left: Object, right: Object) -> Obje
         (Object::StringLiteral(l), Object::Float(r)) => {
             Object::StringLiteral(l.to_string() + &" ".repeat(r as usize as usize))
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::ShiftLeft
+        )]),
     }
 }
 
@@ -455,7 +505,12 @@ fn eval_bitwise_right_shift_infix_expression(left: Object, right: Object) -> Obj
         (Object::StringLiteral(l), Object::Float(r)) => {
             Object::StringLiteral(" ".repeat(r as usize as usize) + &l)
         }
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::ShiftRight
+        )]),
     }
 }
 
@@ -485,7 +540,12 @@ fn eval_less_infix_expression(left: Object, right: Object) -> Object {
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l < r),
         (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l < r),
         (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l < r),
-        _ => Object::Boolean(false),
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Less
+        )]),
     }
 }
 
@@ -495,7 +555,12 @@ fn eval_less_eq_infix_expression(left: Object, right: Object) -> Object {
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l <= r),
         (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l <= r),
         (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l <= r),
-        _ => Object::Boolean(false),
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::LessEq
+        )]),
     }
 }
 
@@ -505,7 +570,12 @@ fn eval_greater_infix_expression(left: Object, right: Object) -> Object {
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l > r),
         (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l > r),
         (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l > r),
-        _ => Object::Boolean(false),
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Greater
+        )]),
     }
 }
 
@@ -515,7 +585,12 @@ fn eval_greater_eq_infix_expression(left: Object, right: Object) -> Object {
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l >= r),
         (Object::Boolean(l), Object::Boolean(r)) => Object::Boolean(l >= r),
         (Object::StringLiteral(l), Object::StringLiteral(r)) => Object::Boolean(l >= r),
-        _ => Object::Boolean(false),
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::GreaterEq
+        )]),
     }
 }
 
@@ -523,7 +598,7 @@ fn eval_postfix_expression(operator: &Token, right: Object) -> Object {
     match operator {
         Token::Increment => eval_increment_operator_expression(right),
         Token::Decrement => eval_decrement_operator_expression(right),
-        _ => NULL_OBJ,
+        o => Object::Error(vec![format!("Invalid postfix operator: {}{}", right, o)]),
     }
 }
 
@@ -533,6 +608,11 @@ fn eval_power_infix_expression(left: Object, right: Object) -> Object {
         (Object::Float(l), Object::Float(r)) => Object::Float(l.powf(r)),
         (Object::Integer(l), Object::Float(r)) => Object::Float((l as f64).powf(r)),
         (Object::Float(l), Object::Integer(r)) => Object::Float(l.powf(r as f64)),
-        _ => NULL_OBJ,
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {token} operator: {} {token} {}",
+            l,
+            r,
+            token = Token::Power
+        )]),
     }
 }
