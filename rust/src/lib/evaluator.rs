@@ -1,22 +1,29 @@
-
+use crate::ast;
 use crate::object::Object;
 use crate::token::Token;
-use crate::ast;
-
 
 const TRUE_OBJ: Object = Object::Boolean(true);
 const FALSE_OBJ: Object = Object::Boolean(false);
 const NULL_OBJ: Object = Object::Null;
 
-pub fn eval_program<'a>(node: ast::Program) -> Object<'a> {
+pub fn eval_program(node: ast::Program) -> Box<Object> {
     let mut result = NULL_OBJ;
     for statement in node.statements {
-        result = eval_statement(statement);
+        result = eval_statement(&statement);
+        if let Object::ReturnValue(obj) = result {
+            return obj;
+        }
     }
-    result
+    Box::new(result)
 }
 
-fn eval_statement<'a>(statement: Box<dyn ast::Statement>) -> Object<'a> {
+fn eval_statement(statement: &Box<dyn ast::Statement>) -> Object {
+    if let Some(return_statement) = statement.as_any().downcast_ref::<ast::ReturnStatement>() {
+        return Object::ReturnValue(Box::new(eval_expression(&return_statement.0)));
+    }
+    if let Some(block_statement) = statement.as_any().downcast_ref::<ast::BlockStatement>() {
+        return eval_block_statement(block_statement);
+    }
     match statement
         .as_any()
         .downcast_ref::<ast::ExpressionStatement>()
@@ -26,7 +33,18 @@ fn eval_statement<'a>(statement: Box<dyn ast::Statement>) -> Object<'a> {
     }
 }
 
-fn eval_expression<'a>(expression: &Box<dyn ast::Expression>) -> Object<'a> {
+fn eval_block_statement(block: &ast::BlockStatement) -> Object {
+    let mut result = NULL_OBJ;
+    for statement in &block.statements {
+        result = eval_statement(statement);
+        if let Object::ReturnValue(_) = result {
+            return result;
+        }
+    }
+    result
+}
+
+fn eval_expression(expression: &Box<dyn ast::Expression>) -> Object {
     if let Some(int) = expression.as_any().downcast_ref::<ast::Int>() {
         return Object::Integer(int.0);
     } else if let Some(float) = expression.as_any().downcast_ref::<ast::Float>() {
@@ -54,7 +72,7 @@ fn eval_expression<'a>(expression: &Box<dyn ast::Expression>) -> Object<'a> {
     }
 }
 
-fn eval_prefix_expression<'a>(operator: &Token, right: Object<'a>) -> Object<'a> {
+fn eval_prefix_expression(operator: &Token, right: Object) -> Object {
     match operator {
         Token::Not => eval_bang_operator_expression(right),
         Token::Sub => eval_minus_prefix_operator_expression(right),
@@ -165,7 +183,7 @@ fn eval_decrement_operator_expression(right: Object) -> Object {
     }
 }
 
-fn eval_infix_expression<'a>(left: Object<'a>, operator: &Token, right: Object<'a>) -> Object<'a> {
+fn eval_infix_expression(left: Object, operator: &Token, right: Object) -> Object {
     match operator {
         Token::Add => eval_plus_infix_expression(left, right),
         Token::Sub => eval_minus_infix_expression(left, right),
@@ -220,7 +238,7 @@ fn is_truthy(obj: Object) -> bool {
     }
 }
 
-fn eval_plus_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_plus_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l + r),
         (Object::Float(l), Object::Float(r)) => Object::Float(l + r),
@@ -231,7 +249,7 @@ fn eval_plus_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object
     }
 }
 
-fn eval_minus_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_minus_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l - r),
         (Object::Float(l), Object::Float(r)) => Object::Float(l - r),
@@ -244,7 +262,7 @@ fn eval_minus_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Objec
     }
 }
 
-fn eval_multiply_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_multiply_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l * r),
         (Object::Float(l), Object::Float(r)) => Object::Float(l * r),
@@ -274,7 +292,7 @@ fn eval_multiply_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Ob
     }
 }
 
-fn eval_divide_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_divide_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l / r),
         (Object::Float(l), Object::Float(r)) => Object::Float(l / r),
@@ -320,7 +338,7 @@ fn eval_divide_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Obje
     }
 }
 
-fn eval_modulo_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_modulo_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l % r),
         (Object::Float(l), Object::Float(r)) => Object::Float(l % r),
@@ -348,7 +366,7 @@ fn eval_modulo_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Obje
     }
 }
 
-fn eval_bitwise_and_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_bitwise_and_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l & r),
         (Object::Float(l), Object::Float(r)) => Object::Integer(l as i128 & r as i128),
@@ -362,7 +380,7 @@ fn eval_bitwise_and_infix_expression<'a>(left: Object<'a>, right: Object<'a>) ->
     }
 }
 
-fn eval_bitwise_or_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_bitwise_or_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l | r),
         (Object::Float(l), Object::Float(r)) => Object::Integer(l as i128 | r as i128),
@@ -380,7 +398,7 @@ fn eval_bitwise_or_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> 
     }
 }
 
-fn eval_bitwise_xor_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_bitwise_xor_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l ^ r),
         (Object::Float(l), Object::Float(r)) => Object::Integer(l as i128 ^ r as i128),
@@ -403,7 +421,7 @@ fn eval_bitwise_xor_infix_expression<'a>(left: Object<'a>, right: Object<'a>) ->
     }
 }
 
-fn eval_bitwise_left_shift_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_bitwise_left_shift_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l << r),
         (Object::Float(l), Object::Float(r)) => Object::Integer((l as i128) << (r as i128)),
@@ -422,10 +440,7 @@ fn eval_bitwise_left_shift_infix_expression<'a>(left: Object<'a>, right: Object<
     }
 }
 
-fn eval_bitwise_right_shift_infix_expression<'a>(
-    left: Object<'a>,
-    right: Object<'a>,
-) -> Object<'a> {
+fn eval_bitwise_right_shift_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l >> r),
         (Object::Float(l), Object::Float(r)) => Object::Integer((l as i128) >> (r as i128)),
@@ -444,7 +459,7 @@ fn eval_bitwise_right_shift_infix_expression<'a>(
     }
 }
 
-fn eval_equal_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_equal_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l == r),
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l == r),
@@ -454,7 +469,7 @@ fn eval_equal_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Objec
     }
 }
 
-fn eval_not_equal_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_not_equal_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l != r),
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l != r),
@@ -464,7 +479,7 @@ fn eval_not_equal_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> O
     }
 }
 
-fn eval_less_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_less_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l < r),
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l < r),
@@ -474,7 +489,7 @@ fn eval_less_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object
     }
 }
 
-fn eval_less_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_less_eq_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l <= r),
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l <= r),
@@ -484,7 +499,7 @@ fn eval_less_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Obj
     }
 }
 
-fn eval_greater_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_greater_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l > r),
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l > r),
@@ -494,7 +509,7 @@ fn eval_greater_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Obj
     }
 }
 
-fn eval_greater_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_greater_eq_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Boolean(l >= r),
         (Object::Float(l), Object::Float(r)) => Object::Boolean(l >= r),
@@ -504,7 +519,7 @@ fn eval_greater_eq_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> 
     }
 }
 
-fn eval_postfix_expression<'a>(operator: &Token, right: Object<'a>) -> Object<'a> {
+fn eval_postfix_expression(operator: &Token, right: Object) -> Object {
     match operator {
         Token::Increment => eval_increment_operator_expression(right),
         Token::Decrement => eval_decrement_operator_expression(right),
@@ -512,7 +527,7 @@ fn eval_postfix_expression<'a>(operator: &Token, right: Object<'a>) -> Object<'a
     }
 }
 
-fn eval_power_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Object<'a> {
+fn eval_power_infix_expression(left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => Object::Integer(l.pow(r as u32)),
         (Object::Float(l), Object::Float(r)) => Object::Float(l.powf(r)),
@@ -521,5 +536,3 @@ fn eval_power_infix_expression<'a>(left: Object<'a>, right: Object<'a>) -> Objec
         _ => NULL_OBJ,
     }
 }
-
-

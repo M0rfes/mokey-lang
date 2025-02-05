@@ -105,7 +105,7 @@ impl fmt::Display for LetStatement {
     }
 }
 
-struct ReturnStatement(Box<dyn Expression>);
+pub struct ReturnStatement(pub Box<dyn Expression>);
 
 impl Node for ReturnStatement {
     fn token_literal(&self) -> String {
@@ -299,8 +299,8 @@ impl fmt::Display for StringLiteral {
     }
 }
 
-struct BlockStatement {
-    statements: Vec<Box<dyn Statement>>,
+pub struct BlockStatement {
+   pub statements: Vec<Box<dyn Statement>>,
 }
 
 impl Node for BlockStatement {
@@ -450,6 +450,7 @@ impl<'a> Parser<'a> {
         match self.peek() {
             Some(Token::Let) => self.parse_let_statement(),
             Some(Token::Return) => self.parse_return_statement(),
+            Some(Token::LBrace) => Ok(Box::new(self.parse_block_statement()?)),
             _ => self.parse_expression_statement(),
         }
     }
@@ -835,4 +836,34 @@ mod tests {
         let left = left.unwrap();
         assert_eq!(left.0, "x");
     }
+
+    #[test]
+    fn test_block_statement() {
+        let input = "{ let x = 5; let y = 10; }";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<BlockStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let block = &statement.statements;
+        assert_eq!(block.len(), 2);
+        let let_statement1 = block[0]
+            .as_any()
+            .downcast_ref::<LetStatement>();
+        assert!(let_statement1.is_some());
+        let let_statement1 = let_statement1.unwrap();
+        assert_eq!(let_statement1.name.0, "x");
+        let let_statement2 = block[1]
+            .as_any()
+            .downcast_ref::<LetStatement>();
+        assert!(let_statement2.is_some());
+        let let_statement2 = let_statement2.unwrap();
+        assert_eq!(let_statement2.name.0, "y");
+    }
+
 }
