@@ -1,4 +1,4 @@
-use std::{any::Any, fmt, iter::Peekable};
+use std::{any::Any, fmt, iter::Peekable, rc::Rc,};
 
 use crate::{
     lexer::{Lexer, LexerError},
@@ -62,6 +62,7 @@ impl std::fmt::Display for Program {
     }
 }
 
+#[derive(Clone)]
 pub struct Identifier(pub String);
 
 impl Node for Identifier {
@@ -356,9 +357,10 @@ impl fmt::Display for IfExpression {
     }
 }
 
-struct FunctionLiteral {
-    parameters: Vec<Identifier>,
-    body: BlockStatement,
+#[derive(Clone)]
+pub struct FunctionLiteral {
+   pub parameters: Vec<Identifier>,
+   pub body: Rc<BlockStatement>,
 }
 
 impl Node for FunctionLiteral {
@@ -370,6 +372,16 @@ impl Node for FunctionLiteral {
         self
     }
 }
+
+impl Expression for FunctionLiteral {}
+
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
+        write!(f, "fn({}) {}", params.join(", "), self.body)
+    }
+}
+
 
 struct CallExpression {
     function: Box<dyn Expression>,
@@ -395,14 +407,6 @@ impl fmt::Display for CallExpression {
     }
 }
 
-impl Expression for FunctionLiteral {}
-
-impl fmt::Display for FunctionLiteral {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let params: Vec<String> = self.parameters.iter().map(|p| p.to_string()).collect();
-        write!(f, "fn({}) {}", params.join(", "), self.body)
-    }
-}
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
@@ -528,7 +532,7 @@ impl<'a> Parser<'a> {
                 }
                 let parameters = self.parse_function_parameters()?;
                 let body = self.parse_block_statement()?;
-                let f = FunctionLiteral { parameters, body };
+                let f = FunctionLiteral { parameters, body: Rc::new(body) };
                 Ok(Box::new(f))
             }
             operator @ (Token::Sub

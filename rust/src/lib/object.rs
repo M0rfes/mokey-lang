@@ -1,7 +1,9 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-#[derive(Debug, Clone)]
+use crate::ast;
+
+#[derive(Clone)]
 pub enum Object {
     StringLiteral(String),
     Integer(i128),
@@ -10,6 +12,7 @@ pub enum Object {
     ReturnValue(Box<Object>),
     Null, // Null is a singleton, so we use a Box<()>
     Error(Vec<String>),
+    Function(Rc<Function>),
 }
 
 // Object trait is no longer needed
@@ -34,7 +37,19 @@ impl fmt::Display for Object {
                 }
                 write!(f, "{}", s)
             }
+            Object::Function(func) => write!(f, "{}", func),
         }
+    }
+}
+
+pub struct Function {
+    pub function_literal: ast::FunctionLiteral,
+    pub env: Rc<RefCell<Environment>>,
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.function_literal)
     }
 }
 
