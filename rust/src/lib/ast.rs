@@ -62,7 +62,7 @@ impl std::fmt::Display for Program {
     }
 }
 
-struct Identifier(String);
+pub struct Identifier(pub String);
 
 impl Node for Identifier {
     fn token_literal(&self) -> String {
@@ -82,9 +82,9 @@ impl fmt::Display for Identifier {
     }
 }
 
-struct LetStatement {
-    name: Identifier,
-    value: Box<dyn Expression>,
+pub struct LetStatement {
+   pub name: Identifier,
+   pub value: Box<dyn Expression>,
 }
 
 impl Node for LetStatement {

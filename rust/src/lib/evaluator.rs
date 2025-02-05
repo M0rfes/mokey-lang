@@ -1,4 +1,7 @@
+use std::cell::RefCell;
+use std::env;
 use std::f32::consts::PI;
+use std::rc::Rc;
 
 use crate::object::Object;
 use crate::token::Token;
@@ -8,37 +11,49 @@ const TRUE_OBJ: Object = Object::Boolean(true);
 const FALSE_OBJ: Object = Object::Boolean(false);
 const NULL_OBJ: Object = Object::Null;
 
-pub fn eval_program(node: ast::Program) -> Box<Object> {
+pub fn eval_program(node: ast::Program, env: Rc<RefCell<object::Environment>>) -> Box<Object> {
     let mut result = NULL_OBJ;
     for statement in node.statements {
-        result = eval_statement(&statement);
+        result = eval_statement(&statement, env.clone());
         if let Object::ReturnValue(obj) = result {
             return obj;
+        }
+        if let Object::Error(_) = result {
+            return Box::new(result);
         }
     }
     Box::new(result)
 }
 
-fn eval_statement(statement: &Box<dyn ast::Statement>) -> Object {
+fn eval_statement(
+    statement: &Box<dyn ast::Statement>,
+    env: Rc<RefCell<object::Environment>>,
+) -> Object {
     if let Some(return_statement) = statement.as_any().downcast_ref::<ast::ReturnStatement>() {
-        return Object::ReturnValue(Box::new(eval_expression(&return_statement.0)));
+        return Object::ReturnValue(Box::new(eval_expression(&return_statement.0,env)));
     }
     if let Some(block_statement) = statement.as_any().downcast_ref::<ast::BlockStatement>() {
-        return eval_block_statement(block_statement);
+        return eval_block_statement(block_statement, env);
+    }
+    if let Some(let_statement) = statement.as_any().downcast_ref::<ast::LetStatement>() {
+        return eval_let_statement(let_statement, env);
     }
     match statement
         .as_any()
         .downcast_ref::<ast::ExpressionStatement>()
     {
-        Some(expr_stmt) => eval_expression(&expr_stmt.0),
+        Some(expr_stmt) => eval_expression(&expr_stmt.0,env),
         _ => NULL_OBJ,
     }
 }
 
-fn eval_block_statement(block: &ast::BlockStatement) -> Object {
+fn eval_block_statement(
+    block: &ast::BlockStatement,
+    env: Rc<RefCell<object::Environment>>,
+) -> Object {
     let mut result = NULL_OBJ;
     for statement in &block.statements {
-        result = eval_statement(statement);
+        result = eval_statement(statement, env.clone());
         if let Object::ReturnValue(_) = result {
             return result;
         }
@@ -46,7 +61,7 @@ fn eval_block_statement(block: &ast::BlockStatement) -> Object {
     result
 }
 
-fn eval_expression(expression: &Box<dyn ast::Expression>) -> Object {
+fn eval_expression(expression: &Box<dyn ast::Expression>,env: Rc<RefCell<object::Environment>>) -> Object {
     if let Some(int) = expression.as_any().downcast_ref::<ast::Int>() {
         return Object::Integer(int.0);
     } else if let Some(float) = expression.as_any().downcast_ref::<ast::Float>() {
@@ -60,16 +75,19 @@ fn eval_expression(expression: &Box<dyn ast::Expression>) -> Object {
     } else if let Some(string) = expression.as_any().downcast_ref::<ast::StringLiteral>() {
         return Object::StringLiteral(string.0.clone());
     } else if let Some(prefix) = expression.as_any().downcast_ref::<ast::Prefix>() {
-        let right = eval_expression(&prefix.right);
+        let right = eval_expression(&prefix.right,env);
         return eval_prefix_expression(&prefix.operator, right);
     } else if let Some(infix) = expression.as_any().downcast_ref::<ast::Infix>() {
-        let left = eval_expression(&infix.left);
-        let right = eval_expression(&infix.right);
+        let left = eval_expression(&infix.left,env.clone());
+        let right = eval_expression(&infix.right,env.clone());
         return eval_infix_expression(left, &infix.operator, right);
     } else if let Some(postfix) = expression.as_any().downcast_ref::<ast::Postfix>() {
-        let right = eval_expression(&postfix.left);
+        let right = eval_expression(&postfix.left,env);
         return eval_postfix_expression(&postfix.operator, right);
-    } else {
+    } else if let Some(ident) = expression.as_any().downcast_ref::<ast::Identifier>() {
+        return eval_identifier(ident, env.clone());
+    }
+     else {
         return Object::Null;
     }
 }
@@ -614,5 +632,22 @@ fn eval_power_infix_expression(left: Object, right: Object) -> Object {
             r,
             token = Token::Power
         )]),
+    }
+}
+
+fn eval_let_statement(
+    let_statement: &ast::LetStatement,
+    env: Rc<RefCell<object::Environment>>,
+) -> Object {
+    let value = eval_expression(&let_statement.value,env.clone());
+    env.borrow_mut()
+        .set(let_statement.name.0.clone(), value.clone());
+    value
+}
+
+fn eval_identifier(node: &ast::Identifier, env: Rc<RefCell<object::Environment>>) -> Object {
+    match env.borrow().get(&node.0) {
+        Some(obj) => obj,
+        None => Object::Error(vec![format!("Identifier not found: {}", node.0)]),
     }
 }

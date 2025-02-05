@@ -1,6 +1,10 @@
 use lib::{ast::Parser, lexer::Lexer};
-use std::io::{self, Write};
+use std::{
+    cell::RefCell, io::{self, Write}, rc::Rc
+};
 fn main() {
+    let env = Rc::new(RefCell::new(lib::object::Environment::new()));
+    println!("Monkey REPL");
     loop {
         print!(">>> ");
         io::stdout().flush().unwrap();
@@ -18,7 +22,7 @@ fn main() {
         if program.errors.len() > 0 {
             return;
         }
-        let obj = lib::evaluator::eval_program(program);
+        let obj = lib::evaluator::eval_program(program, env.clone());
         println!("{}", obj);
     }
 }
