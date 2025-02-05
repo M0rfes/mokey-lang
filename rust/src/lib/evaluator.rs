@@ -641,8 +641,8 @@ fn eval_let_statement(
 ) -> Object {
     let value = eval_expression(&let_statement.value,env.clone());
     env.borrow_mut()
-        .set(let_statement.name.0.clone(), value.clone());
-    value
+        .set(let_statement.name.0.clone(), value);
+    NULL_OBJ
 }
 
 fn eval_identifier(node: &ast::Identifier, env: Rc<RefCell<object::Environment>>) -> Object {
