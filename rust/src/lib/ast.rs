@@ -17,7 +17,7 @@ pub trait Expression: Node + std::fmt::Display {}
 
 #[derive(Debug)]
 pub enum ParseError {
-    UnexpectedToken,
+    UnexpectedToken(Token),
     UnexpectedEOF,
     LexerError(LexerError),
 }
@@ -413,6 +413,51 @@ impl fmt::Display for CallExpression {
     }
 }
 
+pub struct ArrayLiteral {
+    pub elements: Vec<Box<dyn Expression>>,
+}
+
+impl Node for ArrayLiteral {
+    fn token_literal(&self) -> String {
+        "array".to_string()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Expression for ArrayLiteral {}
+
+impl fmt::Display for ArrayLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let elements: Vec<String> = self.elements.iter().map(|e| e.to_string()).collect();
+        write!(f, "[{}]", elements.join(", "))
+    }
+}
+
+pub struct IndexExpression {
+    pub left: Box<dyn Expression>,
+    pub index: Box<dyn Expression>,
+}
+
+impl Node for IndexExpression {
+    fn token_literal(&self) -> String {
+        "index".to_string()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Expression for IndexExpression {}
+
+impl fmt::Display for IndexExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}[{}])", self.left, self.index)
+    }
+}
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
@@ -447,11 +492,10 @@ impl<'a> Parser<'a> {
                 Ok(statement) => program.statements.push(statement),
                 Err(err) => {
                     program.errors.push(err);
-                    self.next();
+                    self.next().unwrap();
                 }
             }
         }
-
         program
     }
 
@@ -472,9 +516,10 @@ impl<'a> Parser<'a> {
         self.next()?;
         let value = self.parse_expression(Precedence::Lowest)?;
         // reads the `;` token
-        let Token::Semicolon = self.next()? else {
-            return Err(ParseError::UnexpectedToken);
-        };
+        let token = self.next()?;
+        if token != Token::Semicolon {
+            return Err(ParseError::UnexpectedToken(token));
+        }
         Ok(Box::new(LetStatement { name, value }))
     }
 
@@ -483,24 +528,26 @@ impl<'a> Parser<'a> {
         self.next()?;
         let value = self.parse_expression(Precedence::Lowest)?;
         // reads the `;` token
-        let Token::Semicolon = self.next()? else {
-            return Err(ParseError::UnexpectedToken);
-        };
+        let token = self.next()?;
+        if token != Token::Semicolon {
+            return Err(ParseError::UnexpectedToken(token));
+        }
         Ok(Box::new(ReturnStatement(value)))
     }
 
     fn parse_identifier(&mut self) -> Result<Identifier, ParseError> {
         match self.next()? {
             Token::Ident(ident) => Ok(Identifier(ident)),
-            _ => Err(ParseError::UnexpectedToken),
+            token => Err(ParseError::UnexpectedToken(token)),
         }
     }
 
     fn parse_expression_statement(&mut self) -> Result<Box<dyn Statement>, ParseError> {
         let expression = self.parse_expression(Precedence::Lowest)?;
         // reads the `;` token
-        if Token::Semicolon != self.next()? {
-            return Err(ParseError::UnexpectedToken);
+        let token = self.next()?;
+        if token != Token::Semicolon {
+            return Err(ParseError::UnexpectedToken(token));
         }
         Ok(Box::new(ExpressionStatement(expression)))
     }
@@ -524,16 +571,19 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_prefix_expression(&mut self) -> Result<Box<dyn Expression>, ParseError> {
-        match self.next()? {
+        let token = self.next()?;
+        match token {
             Token::Ident(ident) => Ok(Box::new(Identifier(ident))),
             Token::Int(n) => Ok(Box::new(Int(n))),
             Token::Float(n) => Ok(Box::new(Float(n))),
             Token::True => Ok(Box::new(Bool(true))),
             Token::False => Ok(Box::new(Bool(false))),
             Token::Str(s) => Ok(Box::new(StringLiteral(s))),
+            Token::LBracket => self.parse_array_literal(),
             Token::Function => {
-                if Token::LParen != self.next()? {
-                    return Err(ParseError::UnexpectedToken);
+                let token = self.next()?;
+                if token != Token::LParen {
+                    return Err(ParseError::UnexpectedToken(token));
                 }
                 let parameters = self.parse_function_parameters()?;
                 let body = self.parse_block_statement()?;
@@ -568,18 +618,20 @@ impl<'a> Parser<'a> {
             }
             Token::LParen => {
                 let expression = self.parse_expression(Precedence::Lowest)?;
-                if self.next()? != Token::RParen {
-                    return Err(ParseError::UnexpectedToken);
+                let token = self.next()?;
+                if token != Token::RParen {
+                    return Err(ParseError::UnexpectedToken(token));
                 }
                 Ok(expression)
             }
-            _ => Err(ParseError::UnexpectedToken),
+            token => Err(ParseError::UnexpectedToken(token)),
         }
     }
     fn parse_block_statement(&mut self) -> Result<BlockStatement, ParseError> {
         // reads the `{` token
-        if self.next()? != Token::LBrace {
-            return Err(ParseError::UnexpectedToken);
+        let token = self.next()?;
+        if token != Token::LBrace {
+            return Err(ParseError::UnexpectedToken(token));
         }
         let mut statements = Vec::new();
         while let Some(token) = self.peek() {
@@ -592,9 +644,10 @@ impl<'a> Parser<'a> {
             }
         }
         // reads the `}` token
-        if self.next()? != Token::RBrace {
-            return Err(ParseError::UnexpectedToken);
-        }
+        let token = self.next()?;
+        if token != Token::RBrace {
+            return Err(ParseError::UnexpectedToken(token));
+        }   
         Ok(BlockStatement { statements })
     }
 
@@ -605,6 +658,9 @@ impl<'a> Parser<'a> {
         let operator = self.next()?;
         if Token::LParen == operator {
             return self.parse_call_expression(left);
+        }
+        if Token::LBracket == operator {
+            return self.parse_index_expression(left);
         }
         let precedence = operator.precedence();
         let right = self.parse_expression(precedence)?;
@@ -639,7 +695,7 @@ impl<'a> Parser<'a> {
                 Token::Comma => {
                     self.next()?;
                 }
-                _ => return Err(ParseError::UnexpectedToken),
+                token => return Err(ParseError::UnexpectedToken(token.clone())),
             }
         }
 
@@ -678,6 +734,38 @@ impl<'a> Parser<'a> {
 
         Ok(arguments)
     }
+
+    fn parse_array_literal(&mut self) -> Result<Box<dyn Expression>, ParseError> {
+        let mut elements = Vec::new();
+        while let Some(token) = self.peek() {
+            match token {
+                Token::RBracket => {
+                    self.next()?;
+                    break;
+                },
+                _ => {
+                    let element = self.parse_expression(Precedence::Lowest)?;
+                    elements.push(element);
+                    if let Some(Token::Comma) = self.peek() {
+                        self.next()?;
+                    }
+                }
+            }
+        }
+        Ok(Box::new(ArrayLiteral { elements }))
+    }
+
+    fn parse_index_expression(
+        &mut self,
+        left: Box<dyn Expression>,
+    ) -> Result<Box<dyn Expression>, ParseError> {
+        let index = self.parse_expression(Precedence::Lowest)?;
+        let token = self.next()?;
+        if token != Token::RBracket {
+            return Err(ParseError::UnexpectedToken(token));
+        }
+        Ok(Box::new(IndexExpression { left, index }))
+    }
 }
 
 impl Token {
@@ -700,7 +788,7 @@ impl Token {
             | Token::Mod
             | Token::Assign => Precedence::Sum,
             Token::Mul | Token::Div | Token::Power => Precedence::Product,
-            Token::LParen => Precedence::Call,
+            Token::LParen | Token::LBracket => Precedence::Call,
             Token::Increment | Token::Decrement => Precedence::Postfix,
             Token::Not => Precedence::Prefix,
             _ => Precedence::Lowest,
@@ -872,5 +960,54 @@ mod tests {
         assert!(let_statement2.is_some());
         let let_statement2 = let_statement2.unwrap();
         assert_eq!(let_statement2.name.0, "y");
+    }
+
+    #[test]
+    fn test_array_literal() {
+        let input = "[1, 2 * 3, 4 + 5];";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1);
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let array = statement.0.as_any().downcast_ref::<ArrayLiteral>();
+        assert!(array.is_some());
+    }
+
+    #[test]
+    fn test_index_expression() {
+        let input = "x[1+1];";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        assert_eq!(program.statements.len(), 1, "expected 1 statement, got {}", program.statements.len());
+        let statement = program.statements[0]
+            .as_any()
+            .downcast_ref::<ExpressionStatement>();
+        assert!(statement.is_some());
+        let statement = statement.unwrap();
+        let index = statement.0.as_any().downcast_ref::<IndexExpression>();
+        assert!(index.is_some());
+        let index = index.unwrap();
+        let left = index.left.as_any().downcast_ref::<Identifier>();
+        assert!(left.is_some());
+        let left = left.unwrap();
+        assert_eq!(left.0, "x");
+        let index = index.index.as_any().downcast_ref::<Infix>();
+        assert!(index.is_some());
+        let index = index.unwrap();
+        assert_eq!(index.operator, Token::Add);
+        let left = index.left.as_any().downcast_ref::<Int>();
+        assert!(left.is_some());
+        let left = left.unwrap();
+        assert_eq!(left.0, 1);
+        let right = index.right.as_any().downcast_ref::<Int>();
+        assert!(right.is_some());
+        let right = right.unwrap();
+        assert_eq!(right.0, 1);
     }
 }
