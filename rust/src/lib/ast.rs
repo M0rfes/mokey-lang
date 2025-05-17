@@ -32,6 +32,7 @@ enum Precedence {
     Prefix,      // -a, !a (unary operators)
     Postfix,     // a++, a--, function calls like foo(), or a[0]
     Call,        // Highest precedence, typically parentheses grouping (e.g., (a + b))
+    Index,       // []
 }
 
 pub struct Program {
@@ -788,9 +789,10 @@ impl Token {
             | Token::Mod
             | Token::Assign => Precedence::Sum,
             Token::Mul | Token::Div | Token::Power => Precedence::Product,
-            Token::LParen | Token::LBracket => Precedence::Call,
+            Token::LParen => Precedence::Call,
             Token::Increment | Token::Decrement => Precedence::Postfix,
             Token::Not => Precedence::Prefix,
+            Token::LBracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
     }
