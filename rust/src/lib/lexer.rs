@@ -154,6 +154,8 @@ impl<'a> Iterator for Lexer<'a> {
             ')' => Ok(Token::RParen),
             '{' => Ok(Token::LBrace),
             '}' => Ok(Token::RBrace),
+            '[' => Ok(Token::LBracket),
+            ']' => Ok(Token::RBracket),
             ',' => Ok(Token::Comma),
             '<' => Ok(Token::Less),
             '>' => Ok(Token::Greater),
@@ -219,6 +221,8 @@ mod tests {
             x++;
             x--;
             ++add1;
+            [1, 2, 3];
+            [1, 2, 3][0];
             "#;
 
         let expected = vec![
@@ -353,10 +357,30 @@ mod tests {
             Token::Increment,
             Token::Ident("add1".to_string()),
             Token::Semicolon,
+            Token::LBracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::Comma,
+            Token::Int(3),
+            Token::RBracket,
+            Token::Semicolon,
+            Token::LBracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::Comma,
+            Token::Int(3),
+            Token::RBracket,
+            Token::LBracket,
+            Token::Int(0),
+            Token::RBracket,
+            Token::Semicolon,
             // ... rest of the tokens
         ];
         let lexer = Lexer::new(input);
         let mut i = 0;
+        let expected_len = expected.len();
         for (token, expected) in lexer.zip(expected.into_iter()) {
             println!("{:?}", token);
             let token = token.unwrap();
@@ -367,5 +391,6 @@ mod tests {
             );
             i += 1;
         }
+        assert_eq!(i, expected_len);
     }
 }
