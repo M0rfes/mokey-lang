@@ -109,6 +109,12 @@ fn eval_expression(
             .map(|arg| eval_expression(arg, env.clone()))
             .collect();
         return apply_function(function, args);
+    } else if let Some(array_literal) = expression.as_any().downcast_ref::<ast::ArrayLiteral>() {
+        return eval_array_expression(array_literal, env);
+    } else if let Some(index_expression) = expression.as_any().downcast_ref::<ast::IndexExpression>() {
+        let left = eval_expression(&index_expression.left, env.clone());
+        let index = eval_expression(&index_expression.index, env.clone());
+        return eval_index_expression(left, index);
     } else {
         return Object::Null;
     }
@@ -739,5 +745,47 @@ fn eval_if_expression(
         return eval_block_statement(else_clause, env);
     } else {
         return NULL_OBJ;
+    }
+}
+
+
+fn eval_array_expression(array_expression: &ast::ArrayLiteral, env: Rc<RefCell<object::Environment>>) -> Object {
+    let elements = array_expression.elements.iter().map(|e| eval_expression(e, env.clone())).collect();
+    Object::Array(elements)
+}
+
+fn eval_index_expression(left: Object, index: Object) -> Object {
+    match (left, index) {
+        (Object::Array(elements), Object::Integer(i)) => {
+            if i < 0 || i >= elements.len() as i128 {
+                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            }
+            elements[i as usize].clone()
+        }
+        (Object::Array(elements), Object::Float(i)) => {
+            if i < 0.0 || i >= elements.len() as f64 {
+                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            }
+            elements[i as usize].clone()
+        }
+        (Object::StringLiteral(s), Object::Integer(i)) => {
+            if i < 0 || i >= s.len() as i128 {
+                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            }
+            Object::StringLiteral(s[i as usize..].to_string())
+        }
+        (Object::StringLiteral(s), Object::Float(i)) => {
+            if i < 0.0 || i >= s.len() as f64 {
+                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            }
+            Object::StringLiteral(s[i as usize..].to_string())
+        }
+        (l, r) => Object::Error(vec![format!(
+            "Invalid types for {t1} {t2} operator: {} {t1} {} {t2}",
+            l,
+            r,
+            t1 = Token::LBracket,
+            t2 = Token::RBracket
+        )]),
     }
 }

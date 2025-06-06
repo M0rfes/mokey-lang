@@ -14,6 +14,7 @@ pub enum Object {
     Error(Vec<String>),
     Function(Rc<Function>),
     Builtin(Builtins),
+    Array(Vec<Object>),
 }
 
 impl fmt::Display for Object {
@@ -34,6 +35,17 @@ impl fmt::Display for Object {
             }
             Object::Function(func) => write!(f, "{}", func),
             Object::Builtin(_) => write!(f, "native code"),
+            Object::Array(elements) => {
+                write!(f, "[")?;
+                for (i, element) in elements.iter().enumerate() {
+                    write!(f, "{}", element)?;
+                    if i < elements.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, "]")?;
+                Ok(())
+            }
         }
     }
 }
