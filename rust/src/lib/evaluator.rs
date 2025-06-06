@@ -748,7 +748,6 @@ fn eval_if_expression(
     }
 }
 
-
 fn eval_array_expression(array_expression: &ast::ArrayLiteral, env: Rc<RefCell<object::Environment>>) -> Object {
     let elements = array_expression.elements.iter().map(|e| eval_expression(e, env.clone())).collect();
     Object::Array(elements)
@@ -757,28 +756,44 @@ fn eval_array_expression(array_expression: &ast::ArrayLiteral, env: Rc<RefCell<o
 fn eval_index_expression(left: Object, index: Object) -> Object {
     match (left, index) {
         (Object::Array(elements), Object::Integer(i)) => {
-            if i < 0 || i >= elements.len() as i128 {
-                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            if i < 0 && i >= -(elements.len() as i128 ){
+                return elements[(elements.len() as i128 + i )as usize].clone();
             }
-            elements[i as usize].clone()
+            if i <= elements.len()  as i128 && i >= 0 {
+                return elements[i as usize].clone()
+            }
+            Object::Error(vec![format!("Index out of bounds: {}", i)])
         }
         (Object::Array(elements), Object::Float(i)) => {
-            if i < 0.0 || i >= elements.len() as f64 {
-                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            if i < 0.0 && i >= -(elements.len() as f64) {
+                return elements[(elements.len() as f64 + i) as usize].clone();
             }
-            elements[i as usize].clone()
+            if i <= elements.len() as f64 && i >= 0.0 {
+                return elements[i as usize].clone()
+            }
+            Object::Error(vec![format!("Index out of bounds: {}", i)])
         }
         (Object::StringLiteral(s), Object::Integer(i)) => {
-            if i < 0 || i >= s.len() as i128 {
-                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            if i < 0 && i >= -(s.len() as i128){
+                let char = s.chars().nth((s.len() as i128 + i) as usize).map(|c| Object::StringLiteral(c.to_string()));
+                return char.unwrap_or(Object::Error(vec![format!("Index out of bounds: {}", i)]));
             }
-            Object::StringLiteral(s[i as usize..].to_string())
+            if i <= s.len() as i128 && i >= 0 {
+                let char = s.chars().nth(i as usize).map(|c| Object::StringLiteral(c.to_string()));
+                return char.unwrap_or(Object::Error(vec![format!("Index out of bounds: {}", i)]));
+            }
+            Object::Error(vec![format!("Index out of bounds: {}", i)])
         }
         (Object::StringLiteral(s), Object::Float(i)) => {
-            if i < 0.0 || i >= s.len() as f64 {
-                return Object::Error(vec![format!("Index out of bounds: {}", i)]);
+            if i < 0.0 && i >= -(s.len() as f64) {
+                let char = s.chars().nth((s.len() as f64 + i) as usize).map(|c| Object::StringLiteral(c.to_string()));
+                return char.unwrap_or(Object::Error(vec![format!("Index out of bounds: {}", i)]));
             }
-            Object::StringLiteral(s[i as usize..].to_string())
+            if i <= s.len() as f64 && i >= 0.0 {
+                let char = s.chars().nth(i as usize as usize).map(|c| Object::StringLiteral(c.to_string()));
+                return char.unwrap_or(Object::Error(vec![format!("Index out of bounds: {}", i)]));
+            }
+            Object::Error(vec![format!("Index out of bounds: {}", i)])
         }
         (l, r) => Object::Error(vec![format!(
             "Invalid types for {t1} {t2} operator: {} {t1} {} {t2}",
